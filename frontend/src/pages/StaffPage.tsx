@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Table,
@@ -12,6 +12,7 @@ import {
   Select,
   message,
   Popconfirm,
+  Spin,
 } from 'antd';
 import {
   PlusOutlined,
@@ -38,11 +39,30 @@ const StaffPage: React.FC = () => {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
   // Use global stores
-  const { projects } = useProjectStore();
-  const { addStaff, updateStaff, setStaffInactive, getStaffByProject } = useStaffStore();
+  const { projects, fetchProjects, loading: projectsLoading } = useProjectStore();
+  const { addStaff, updateStaff, setStaffInactive, getStaffByProject, fetchStaff, loading: staffLoading } = useStaffStore();
   
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || '');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [form] = Form.useForm();
+
+  // Fetch projects on mount
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  // Set default project when projects are loaded
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects]);
+
+  // Fetch staff when project changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchStaff(selectedProjectId, true);
+    }
+  }, [selectedProjectId]);
 
   // Filter staff by selected project
   const filteredStaff = getStaffByProject(selectedProjectId);
@@ -75,9 +95,11 @@ const StaffPage: React.FC = () => {
     try {
       const values = await form.validateFields();
       
+      console.log('Form values:', values);
+      
       if (editingStaff) {
-        updateStaff(editingStaff.id, {
-          code: values.code,
+        console.log('Updating staff:', editingStaff.id, values);
+        const result = await updateStaff(editingStaff.id, {
           name: values.name,
           position: values.position,
           phone: values.phone,
@@ -85,34 +107,51 @@ const StaffPage: React.FC = () => {
           isActive: values.isActive,
           remark: values.remark,
         });
-        message.success('แก้ไขพนักงานสำเร็จ');
+        console.log('Update result:', result);
+        if (result) {
+          message.success('แก้ไขพนักงานสำเร็จ');
+        } else {
+          message.error('แก้ไขพนักงานไม่สำเร็จ');
+          return;
+        }
       } else {
-        addStaff({
-          code: values.code,
+        console.log('Creating new staff');
+        const result = await addStaff({
           name: values.name,
           position: values.position,
           phone: values.phone,
           wagePerDay: values.wagePerDay || 500,
           staffType: 'REGULAR',
-          availability: 'AVAILABLE',
-          isActive: values.isActive ?? true,
+          defaultShift: '1',
           projectId: selectedProjectId,
           remark: values.remark,
         });
-        message.success('เพิ่มพนักงานสำเร็จ');
+        console.log('Create result:', result);
+        if (result) {
+          message.success('เพิ่มพนักงานสำเร็จ');
+        } else {
+          message.error('เพิ่มพนักงานไม่สำเร็จ');
+          return;
+        }
       }
       
       setIsModalOpen(false);
       form.resetFields();
       setEditingStaff(null);
-    } catch (error) {
-      console.error('Validation failed:', error);
+    } catch (error: any) {
+      console.error('Submit error:', error);
+      console.error('Error response:', error.response?.data);
+      message.error(error.response?.data?.error || 'เกิดข้อผิดพลาด');
     }
   };
 
-  const handleInactive = (id: string) => {
-    setStaffInactive(id);
-    message.success('เปลี่ยนสถานะพนักงานเป็น Inactive สำเร็จ');
+  const handleInactive = async (id: string) => {
+    const result = await setStaffInactive(id);
+    if (result) {
+      message.success('เปลี่ยนสถานะพนักงานสำเร็จ');
+    } else {
+      message.error('เปลี่ยนสถานะไม่สำเร็จ');
+    }
   };
 
   const columns = [

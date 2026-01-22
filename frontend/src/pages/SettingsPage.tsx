@@ -485,12 +485,12 @@ const SettingsPage: React.FC = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item label="เวลาเริ่ม" name="startTime">
-                <TimePicker format="HH:mm" style={{ width: '100%' }} />
+                <TimePicker format="HH:mm" style={{ width: '100%' }} needConfirm={false} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item label="เวลาสิ้นสุด" name="endTime">
-                <TimePicker format="HH:mm" style={{ width: '100%' }} />
+                <TimePicker format="HH:mm" style={{ width: '100%' }} needConfirm={false} />
               </Form.Item>
             </Col>
           </Row>

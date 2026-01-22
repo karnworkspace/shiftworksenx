@@ -93,7 +93,10 @@ export const getProjectById = async (req: AuthRequest, res: Response) => {
 
 export const createProject = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, location, themeColor, managerId, costSharing } = req.body;
+    const { name, location, themeColor, managerId, costSharing, costSharingFrom } = req.body;
+    
+    // รองรับทั้ง costSharing และ costSharingFrom
+    const costSharingData = costSharingFrom || costSharing;
 
     // สร้างโครงการ
     const project = await prisma.project.create({
@@ -106,9 +109,9 @@ export const createProject = async (req: AuthRequest, res: Response) => {
     });
 
     // สร้าง Cost Sharing (ถ้ามี)
-    if (costSharing && costSharing.length > 0) {
+    if (costSharingData && costSharingData.length > 0) {
       await prisma.costSharing.createMany({
-        data: costSharing.map((cs: any) => ({
+        data: costSharingData.map((cs: any) => ({
           sourceProjectId: project.id,
           destinationProjectId: cs.destinationProjectId,
           percentage: cs.percentage,
@@ -126,30 +129,34 @@ export const createProject = async (req: AuthRequest, res: Response) => {
 export const updateProject = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, location, themeColor, managerId, costSharing } = req.body;
+    const { name, location, themeColor, managerId, costSharing, costSharingFrom, isActive } = req.body;
+    
+    // รองรับทั้ง costSharing และ costSharingFrom
+    const costSharingData = costSharingFrom || costSharing;
 
     // Update project
-    const project = await prisma.project.update({
+    await prisma.project.update({
       where: { id },
       data: {
-        name,
-        location,
-        themeColor,
-        managerId,
+        ...(name !== undefined && { name }),
+        ...(location !== undefined && { location }),
+        ...(themeColor !== undefined && { themeColor }),
+        ...(managerId !== undefined && { managerId }),
+        ...(isActive !== undefined && { isActive }),
       },
     });
 
     // Update cost sharing
-    if (costSharing !== undefined) {
+    if (costSharingData !== undefined) {
       // Delete existing
       await prisma.costSharing.deleteMany({
         where: { sourceProjectId: id },
       });
 
       // Create new
-      if (costSharing.length > 0) {
+      if (costSharingData.length > 0) {
         await prisma.costSharing.createMany({
-          data: costSharing.map((cs: any) => ({
+          data: costSharingData.map((cs: any) => ({
             sourceProjectId: id,
             destinationProjectId: cs.destinationProjectId,
             percentage: cs.percentage,
@@ -157,6 +164,23 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
         });
       }
     }
+
+    // Refetch with relations
+    const project = await prisma.project.findUnique({
+      where: { id },
+      include: {
+        costSharingFrom: {
+          include: {
+            destinationProject: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
 
     return res.json({ success: true, project });
   } catch (error) {

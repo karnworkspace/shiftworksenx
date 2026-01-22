@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   Row,
@@ -12,6 +12,7 @@ import {
   Divider,
   Typography,
   Table,
+  Spin,
 } from 'antd';
 import {
   ProjectOutlined,
@@ -26,9 +27,9 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
+import { useProjectStore } from '../stores/projectStore';
+import { useStaffStore } from '../stores/staffStore';
 import {
-  mockProjects,
-  mockStaff,
   mockMonthlyAttendance,
 } from '../data/mockData';
 
@@ -53,19 +54,41 @@ interface AttendanceRecord {
 }
 
 const DashboardPage: React.FC = () => {
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
+  const { projects, fetchProjects, loading: projectsLoading } = useProjectStore();
+  const { staff, fetchStaff, loading: staffLoading } = useStaffStore();
+  
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
+
+  // Fetch projects on mount
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  // Set default project when projects are loaded
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects]);
+
+  // Fetch staff when project changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchStaff(selectedProjectId, true);
+    }
+  }, [selectedProjectId]);
 
   const year = selectedDate.year() + 543;
   const month = selectedDate.month() + 1;
 
   // Get current project
-  const currentProject = mockProjects.find((p) => p.id === selectedProjectId);
+  const currentProject = projects.find((p) => p.id === selectedProjectId);
 
   // Summary Statistics
-  const totalProjects = mockProjects.length;
-  const totalStaff = mockStaff.filter((s) => s.isActive).length;
-  const projectStaff = mockStaff.filter(
+  const totalProjects = projects.length;
+  const totalStaff = staff.filter((s) => s.isActive).length;
+  const projectStaff = staff.filter(
     (s) => s.projectId === selectedProjectId && s.isActive
   ).length;
 
@@ -280,8 +303,9 @@ const DashboardPage: React.FC = () => {
                 onChange={setSelectedProjectId}
                 style={{ width: 300 }}
                 size="large"
+                loading={projectsLoading}
               >
-                {mockProjects.map((proj) => (
+                {projects.map((proj) => (
                   <Select.Option key={proj.id} value={proj.id}>
                     {proj.name}
                   </Select.Option>

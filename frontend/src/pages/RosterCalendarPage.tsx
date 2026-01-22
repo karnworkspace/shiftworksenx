@@ -12,6 +12,7 @@ import {
   Form,
   Tag,
   Divider,
+  message,
 } from 'antd';
 import {
   CalendarOutlined,
@@ -25,18 +26,17 @@ import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
 import CalendarView from '../components/CalendarView';
-import {
-  mockProjects,
-  mockStaff,
-  mockRosterEntries,
-  mockShiftTypes,
-} from '../data/mockData';
+import { mockShiftTypes } from '../data/mockData';
+import { useProjectStore } from '../stores/projectStore';
+import { useStaffStore } from '../stores/staffStore';
+import { useRosterStore } from '../stores/rosterStore';
+import { useEffect } from 'react';
 
 dayjs.extend(buddhistEra);
 dayjs.locale('th');
 
 const RosterCalendarPage: React.FC = () => {
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingCell, setEditingCell] = useState<{
@@ -45,51 +45,68 @@ const RosterCalendarPage: React.FC = () => {
   } | null>(null);
   const [form] = Form.useForm();
 
+  // Use global stores
+  const { projects, getProject, fetchProjects } = useProjectStore();
+  const { getStaffByProject, fetchStaff } = useStaffStore();
+  const { currentRoster, rosterMatrix, fetchRoster, updateRosterEntry } = useRosterStore();
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  // Set default project
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects.length]);
+
+  // Fetch staff and roster when project or date changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchStaff(selectedProjectId, true);
+      const year = selectedDate.year();
+      const month = selectedDate.month() + 1;
+      fetchRoster(selectedProjectId, year, month);
+    }
+  }, [selectedProjectId, selectedDate]);
+
   const year = selectedDate.year() + 543; // Convert to Buddhist year
   const month = selectedDate.month() + 1;
 
   // Get current project
-  const currentProject = mockProjects.find((p) => p.id === selectedProjectId);
+  const currentProject = getProject(selectedProjectId);
 
   // Get staff for selected project
   const projectStaff = useMemo(() => {
-    return mockStaff.filter(
-      (s) => s.projectId === selectedProjectId && s.isActive
-    );
+    return getStaffByProject(selectedProjectId).filter(s => s.isActive);
   }, [selectedProjectId]);
 
-  // Get roster entries for selected project
-  const rosterEntries = useMemo(() => {
-    return mockRosterEntries.filter((entry) => {
-      const staff = mockStaff.find((s) => s.id === entry.staffId);
-      return staff?.projectId === selectedProjectId;
-    });
-  }, [selectedProjectId]);
-
-  // Calculate statistics
+  // Calculate statistics using rosterMatrix
   const statistics = useMemo(() => {
-    const today = 20; // วันที่ 20 มกราคม 2569 (from context)
+    const today = dayjs().date();
     let working = 0;
     let off = 0;
     let absent = 0;
 
-    rosterEntries.forEach((entry) => {
-      if (entry.day === today) {
-        const shiftConfig = mockShiftTypes.find(
-          (s) => s.code === entry.shiftCode
-        );
-        if (shiftConfig?.isWorkShift) {
-          working++;
-        } else if (entry.shiftCode === 'OFF') {
-          off++;
-        } else if (['ข', 'ป', 'ก', 'พ'].includes(entry.shiftCode)) {
-          absent++;
-        }
+    if (!rosterMatrix) return { working, off, absent };
+
+    projectStaff.forEach((staff) => {
+      const staffData = rosterMatrix[staff.id];
+      const shiftCode = staffData?.days[today]?.shiftCode || 'OFF';
+      const shiftConfig = mockShiftTypes.find((s) => s.code === shiftCode);
+      if (shiftConfig?.isWorkShift) {
+        working++;
+      } else if (shiftCode === 'OFF') {
+        off++;
+      } else if (['\u0e02', '\u0e1b', '\u0e01', '\u0e1e'].includes(shiftCode)) {
+        absent++;
       }
     });
 
     return { working, off, absent };
-  }, [rosterEntries]);
+  }, [projectStaff, rosterMatrix]);
 
   // Navigate month
   const handlePrevMonth = () => {
@@ -103,21 +120,56 @@ const RosterCalendarPage: React.FC = () => {
   // Handle cell click
   const handleCellClick = (staffId: string, day: number) => {
     setEditingCell({ staffId, day });
-    const currentEntry = rosterEntries.find(
-      (e) => e.staffId === staffId && e.day === day
-    );
+    const staffData = rosterMatrix?.[staffId];
+    const currentShift = staffData?.days[day]?.shiftCode || '1';
     form.setFieldsValue({
-      shiftCode: currentEntry?.shiftCode || '1',
+      shiftCode: currentShift,
     });
     setEditModalVisible(true);
   };
 
-  // Handle save
-  const handleSave = () => {
-    const values = form.getFieldsValue();
-    console.log('Save:', editingCell, values);
-    setEditModalVisible(false);
-    setEditingCell(null);
+  // Convert rosterMatrix to entries format for CalendarView
+  const rosterEntries = useMemo(() => {
+    const entries: Array<{ staffId: string; day: number; shiftCode: string }> = [];
+    
+    if (!rosterMatrix) return entries;
+    
+    projectStaff.forEach((staff) => {
+      const staffData = rosterMatrix[staff.id];
+      if (staffData?.days) {
+        Object.entries(staffData.days).forEach(([day, data]) => {
+          entries.push({
+            staffId: staff.id,
+            day: parseInt(day),
+            shiftCode: data.shiftCode,
+          });
+        });
+      }
+    });
+    
+    return entries;
+  }, [projectStaff, rosterMatrix]);
+
+  // Handle save with API update
+  const handleSave = async () => {
+    if (!editingCell || !currentRoster) return;
+    
+    try {
+      const values = form.getFieldsValue();
+      await updateRosterEntry({
+        rosterId: currentRoster.id,
+        staffId: editingCell.staffId,
+        day: editingCell.day,
+        shiftCode: values.shiftCode,
+      });
+      
+      message.success('บันทึกสำเร็จ');
+      setEditModalVisible(false);
+      setEditingCell(null);
+    } catch (error) {
+      console.error('Error saving shift:', error);
+      message.error('เกิดข้อผิดพลาด');
+    }
   };
 
   return (
@@ -133,7 +185,7 @@ const RosterCalendarPage: React.FC = () => {
                 style={{ width: 300 }}
                 size="large"
               >
-                {mockProjects.map((proj) => (
+                {projects.map((proj) => (
                   <Select.Option key={proj.id} value={proj.id}>
                     {proj.name}
                   </Select.Option>

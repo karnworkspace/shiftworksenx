@@ -1,6 +1,6 @@
 {
   "name": "shift-work-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Backend API for Shift Work Management System",
   "main": "dist/index.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "tsx ../prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "express": "^4.18.2",

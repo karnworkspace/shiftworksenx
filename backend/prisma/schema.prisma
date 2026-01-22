@@ -99,6 +99,9 @@ model Staff {
   // กะทำงานตั้งต้น
   defaultShift String?   @default("1")
   
+  // หมายเหตุ
+  remark      String?
+  
   // Project
   projectId   String
   project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)

@@ -30,7 +30,7 @@ export const useAuthStore = create<AuthStore>()(
         } else {
           localStorage.removeItem('accessToken');
         }
-        set({ accessToken });
+        set({ accessToken, isAuthenticated: !!accessToken });
       },
       logout: () => {
         localStorage.removeItem('accessToken');
@@ -39,7 +39,11 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user }),
+      partialize: (state) => ({ 
+        user: state.user, 
+        accessToken: state.accessToken,
+        isAuthenticated: state.isAuthenticated 
+      }),
     }
   )
 );

@@ -89,6 +89,7 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
       staffType,
       defaultShift,
       projectId,
+      remark,
     } = req.body;
 
     // Validation
@@ -120,6 +121,7 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
         staffType: staffType || StaffType.REGULAR,
         defaultShift: defaultShift || '1',
         projectId,
+        remark,
         isActive: true,
       },
       include: {
@@ -153,6 +155,7 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
       staffType,
       defaultShift,
       isActive,
+      remark,
     } = req.body;
 
     // Check if staff exists
@@ -179,6 +182,7 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
         ...(staffType !== undefined && { staffType }),
         ...(defaultShift !== undefined && { defaultShift }),
         ...(isActive !== undefined && { isActive }),
+        ...(remark !== undefined && { remark }),
       },
       include: {
         project: {

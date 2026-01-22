@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { mockShiftTypes } from '../data/mockData';
 
 interface ShiftType {
@@ -32,51 +33,58 @@ interface SettingsStore {
   updateDeductionConfig: (config: Partial<DeductionConfig>) => void;
 }
 
-export const useSettingsStore = create<SettingsStore>((set, get) => ({
-  shiftTypes: mockShiftTypes.map(st => ({
-    ...st,
-    startTime: st.startTime || null,
-    endTime: st.endTime || null,
-  })) as ShiftType[],
-  
-  deductionConfig: {
-    absentDeductionPerDay: 500,
-    lateDeductionPerTime: 100,
-    sickLeaveDeductionPerDay: 0,
-    maxSickLeaveDaysPerMonth: 3,
-  },
+export const useSettingsStore = create<SettingsStore>()(
+  persist(
+    (set, get) => ({
+      shiftTypes: mockShiftTypes.map(st => ({
+        ...st,
+        startTime: st.startTime || null,
+        endTime: st.endTime || null,
+      })) as ShiftType[],
+      
+      deductionConfig: {
+        absentDeductionPerDay: 500,
+        lateDeductionPerTime: 100,
+        sickLeaveDeductionPerDay: 0,
+        maxSickLeaveDaysPerMonth: 3,
+      },
 
-  addShiftType: (shiftData) => {
-    const newShift: ShiftType = {
-      ...shiftData,
-      id: `shift-${Date.now()}`,
-    };
-    set((state) => ({
-      shiftTypes: [...state.shiftTypes, newShift],
-    }));
-  },
+      addShiftType: (shiftData) => {
+        const newShift: ShiftType = {
+          ...shiftData,
+          id: `shift-${Date.now()}`,
+        };
+        set((state) => ({
+          shiftTypes: [...state.shiftTypes, newShift],
+        }));
+      },
 
-  updateShiftType: (id, updates) => {
-    set((state) => ({
-      shiftTypes: state.shiftTypes.map((s) =>
-        s.id === id ? { ...s, ...updates } : s
-      ),
-    }));
-  },
+      updateShiftType: (id, updates) => {
+        set((state) => ({
+          shiftTypes: state.shiftTypes.map((s) =>
+            s.id === id ? { ...s, ...updates } : s
+          ),
+        }));
+      },
 
-  deleteShiftType: (id) => {
-    set((state) => ({
-      shiftTypes: state.shiftTypes.filter((s) => s.id !== id),
-    }));
-  },
+      deleteShiftType: (id) => {
+        set((state) => ({
+          shiftTypes: state.shiftTypes.filter((s) => s.id !== id),
+        }));
+      },
 
-  getShiftType: (code) => {
-    return get().shiftTypes.find((s) => s.code === code);
-  },
+      getShiftType: (code) => {
+        return get().shiftTypes.find((s) => s.code === code);
+      },
 
-  updateDeductionConfig: (config) => {
-    set((state) => ({
-      deductionConfig: { ...state.deductionConfig, ...config },
-    }));
-  },
-}));
+      updateDeductionConfig: (config) => {
+        set((state) => ({
+          deductionConfig: { ...state.deductionConfig, ...config },
+        }));
+      },
+    }),
+    {
+      name: 'settings-storage',
+    }
+  )
+);

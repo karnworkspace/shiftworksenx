@@ -1,20 +1,28 @@
 import React from 'react';
-import { Layout, Menu, Avatar } from 'antd';
+import { Layout, Menu, Avatar, Button, Dropdown } from 'antd';
 import { 
   ProjectOutlined, 
   TeamOutlined, 
   CalendarOutlined,
   BarChartOutlined,
   UserOutlined,
-  SettingOutlined 
+  SettingOutlined,
+  LogoutOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useAuthStore } from '../stores/authStore';
 
 const { Header, Sider, Content } = Layout;
 
 const DashboardLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const menuItems = [
     {
@@ -56,10 +64,24 @@ const DashboardLayout: React.FC = () => {
         <div style={{ color: 'white', fontSize: '20px', fontWeight: 'bold' }}>
           🏢 SENX Juristic
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Avatar icon={<UserOutlined />} />
-          <span style={{ color: 'white' }}>Admin</span>
-        </div>
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: 'logout',
+                icon: <LogoutOutlined />,
+                label: 'ออกจากระบบ',
+                onClick: handleLogout,
+              },
+            ],
+          }}
+          placement="bottomRight"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <Avatar icon={<UserOutlined />} />
+            <span style={{ color: 'white' }}>{user?.name || 'Admin'}</span>
+          </div>
+        </Dropdown>
       </Header>
       <Layout>
         <Sider width={200} theme="light">

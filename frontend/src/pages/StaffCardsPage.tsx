@@ -27,7 +27,9 @@ import {
   DollarOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
-import { mockProjects, mockStaff } from '../data/mockData';
+import { useProjectStore } from '../stores/projectStore';
+import { useStaffStore } from '../stores/staffStore';
+import { useEffect } from 'react';
 
 const { Search } = Input;
 const { Text } = Typography;
@@ -43,27 +45,45 @@ interface Staff {
   availability: 'AVAILABLE' | 'TEMPORARILY_OFF' | 'ON_LEAVE';
   isActive: boolean;
   projectId: string;
-  project: {
+  project?: {
     id: string;
     name: string;
-    themeColor: string;
+    themeColor?: string;
   };
 }
 
 const StaffCardsPage: React.FC = () => {
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [searchText, setSearchText] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [form] = Form.useForm();
 
+  // Use global stores
+  const { projects, fetchProjects } = useProjectStore();
+  const { staff, addStaff, updateStaff, setStaffInactive, fetchAllStaff } = useStaffStore();
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  // Set default project when projects loaded
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+      fetchAllStaff(projects.map(p => p.id));
+    }
+  }, [projects.length]);
+
   // Filter staff by project and search
-  const filteredStaff = mockStaff.filter((staff) => {
-    const matchProject = staff.projectId === selectedProjectId;
+  const filteredStaff = staff.filter((s) => {
+    const matchProject = s.projectId === selectedProjectId;
     const matchSearch =
-      staff.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      staff.position.toLowerCase().includes(searchText.toLowerCase());
-    return matchProject && matchSearch && staff.isActive;
+      s.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      s.position.toLowerCase().includes(searchText.toLowerCase()) ||
+      s.code.toLowerCase().includes(searchText.toLowerCase());
+    return matchProject && (searchText === '' || matchSearch) && s.isActive;
   });
 
   // Get availability badge
@@ -120,7 +140,7 @@ const StaffCardsPage: React.FC = () => {
     message.success('ลบพนักงานสำเร็จ');
   };
 
-  const currentProject = mockProjects.find((p) => p.id === selectedProjectId);
+  const currentProject = projects.find((p) => p.id === selectedProjectId);
 
   return (
     <div style={{ padding: '24px' }}>
@@ -135,7 +155,7 @@ const StaffCardsPage: React.FC = () => {
                 style={{ width: 300 }}
                 size="large"
               >
-                {mockProjects.map((proj) => (
+                {projects.map((proj) => (
                   <Select.Option key={proj.id} value={proj.id}>
                     {proj.name}
                   </Select.Option>
@@ -170,7 +190,7 @@ const StaffCardsPage: React.FC = () => {
       <div style={{ marginTop: '24px' }}>
         <Text type="secondary">
           แสดง {filteredStaff.length} คน จากทั้งหมด{' '}
-          {mockStaff.filter((s) => s.projectId === selectedProjectId).length} คน
+          {staff.filter((s) => s.projectId === selectedProjectId).length} คน
         </Text>
 
         <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>

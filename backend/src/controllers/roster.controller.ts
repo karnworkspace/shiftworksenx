@@ -4,8 +4,8 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// Valid shift codes
-const VALID_SHIFT_CODES = ['1', '2', '3', 'ดึก', 'OFF', 'ข', 'ป', 'ก', 'พ'];
+// Valid shift codes (support all shifts from frontend)
+const VALID_SHIFT_CODES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'ดึก', 'OFF', 'ข', 'ป', 'ก', 'พ'];
 
 /**
  * Get roster for a specific project and month

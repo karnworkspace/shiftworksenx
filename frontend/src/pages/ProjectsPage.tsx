@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Table,
@@ -12,6 +12,7 @@ import {
   Select,
   message,
   Popconfirm,
+  Spin,
 } from 'antd';
 import {
   PlusOutlined,
@@ -25,10 +26,11 @@ interface Project {
   id: string;
   name: string;
   themeColor: string;
-  managerId: string;
-  responsiblePerson?: string;
+  managerId?: string;
+  location?: string;
   isActive: boolean;
-  costSharing?: Array<{
+  costSharingFrom?: Array<{
+    id?: string;
     destinationProjectId: string;
     percentage: number;
   }>;
@@ -40,8 +42,20 @@ const ProjectsPage: React.FC = () => {
   const [form] = Form.useForm();
 
   // Use global stores
-  const { projects, addProject, updateProject, deleteProject } = useProjectStore();
-  const { getActiveStaffByProject } = useStaffStore();
+  const { projects, addProject, updateProject, deleteProject, fetchProjects, loading } = useProjectStore();
+  const { getActiveStaffByProject, fetchStaff } = useStaffStore();
+
+  // Fetch projects on mount
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  // Fetch staff for all projects
+  useEffect(() => {
+    if (projects.length > 0) {
+      projects.forEach(p => fetchStaff(p.id, true));
+    }
+  }, [projects.length]);
 
   // Count staff per project
   const getStaffCount = (projectId: string) => {
@@ -62,8 +76,8 @@ const ProjectsPage: React.FC = () => {
     setEditingProject(project);
     form.setFieldsValue({
       name: project.name,
-      responsiblePerson: project.responsiblePerson,
-      costSharing: project.costSharing || [],
+      location: project.location,
+      costSharingFrom: project.costSharingFrom || [],
     });
     setIsModalOpen(true);
   };
@@ -78,37 +92,56 @@ const ProjectsPage: React.FC = () => {
         : values.themeColor?.toHexString?.() || '#3b82f6';
       
       if (editingProject) {
-        updateProject(editingProject.id, {
+        const result = await updateProject(editingProject.id, {
           name: values.name,
-          responsiblePerson: values.responsiblePerson,
+          location: values.location,
           themeColor,
           isActive: values.isActive ?? true,
-          costSharing: values.costSharing || [],
+          costSharingFrom: values.costSharingFrom || [],
         });
-        message.success('แก้ไขโครงการสำเร็จ');
+        if (result) {
+          message.success('แก้ไขโครงการสำเร็จ');
+          setIsModalOpen(false);
+          form.resetFields();
+          setEditingProject(null);
+        } else {
+          message.error('ไม่สามารถแก้ไขโครงการได้');
+        }
       } else {
-        addProject({
+        const result = await addProject({
           name: values.name,
-          responsiblePerson: values.responsiblePerson,
+          location: values.location,
           themeColor,
-          managerId: 'admin-1',
           isActive: values.isActive ?? true,
-          costSharing: values.costSharing || [],
+          costSharingFrom: values.costSharingFrom || [],
         });
-        message.success('สร้างโครงการสำเร็จ');
+        if (result) {
+          message.success('สร้างโครงการสำเร็จ');
+          setIsModalOpen(false);
+          form.resetFields();
+          setEditingProject(null);
+        } else {
+          message.error('ไม่สามารถสร้างโครงการได้');
+        }
       }
-      
-      setIsModalOpen(false);
-      form.resetFields();
-      setEditingProject(null);
     } catch (error) {
-      console.error('Validation failed:', error);
+      console.error('Form validation or submission failed:', error);
+      message.error('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
     }
   };
 
-  const handleDelete = (id: string) => {
-    deleteProject(id);
-    message.success('ลบโครงการสำเร็จ');
+  const handleDelete = async (id: string) => {
+    try {
+      const result = await deleteProject(id);
+      if (result) {
+        message.success('ลบโครงการสำเร็จ');
+      } else {
+        message.error('ไม่สามารถลบโครงการได้');
+      }
+    } catch (error) {
+      console.error('Delete failed:', error);
+      message.error('เกิดข้อผิดพลาดในการลบโครงการ');
+    }
   };
 
   const columns = [
@@ -131,9 +164,9 @@ const ProjectsPage: React.FC = () => {
       ),
     },
     {
-      title: 'ผู้รับผิดชอบ',
-      dataIndex: 'responsiblePerson',
-      key: 'responsiblePerson',
+      title: 'สถานที่',
+      dataIndex: 'location',
+      key: 'location',
       render: (text: string) => text || '-',
     },
     {
@@ -145,12 +178,12 @@ const ProjectsPage: React.FC = () => {
     },
     {
       title: 'Cost Sharing',
-      key: 'costSharing',
+      key: 'costSharingFrom',
       render: (_: any, record: any) => {
-        if (!record.costSharing || record.costSharing.length === 0) return '-';
+        if (!record.costSharingFrom || record.costSharingFrom.length === 0) return '-';
         return (
           <Space direction="vertical" size="small">
-            {record.costSharing.map((cs: any, idx: number) => {
+            {record.costSharingFrom.map((cs: any, idx: number) => {
               const destProject = projects.find((p) => p.id === cs.destinationProjectId);
               return (
                 <Tag key={idx} color="orange">
@@ -203,11 +236,13 @@ const ProjectsPage: React.FC = () => {
           </Button>
         }
       >
-        <Table
-          columns={columns}
-          dataSource={projects}
-          rowKey="id"
-        />
+        <Spin spinning={loading}>
+          <Table
+            columns={columns}
+            dataSource={projects}
+            rowKey="id"
+          />
+        </Spin>
       </Card>
 
       {/* Create/Edit Modal */}
@@ -227,15 +262,15 @@ const ProjectsPage: React.FC = () => {
             <Input placeholder="เช่น โครงการ Condo A" />
           </Form.Item>
 
-          <Form.Item label="ผู้รับผิดชอบ" name="responsiblePerson">
-            <Input placeholder="เช่น คุณสมชาย" />
+          <Form.Item label="สถานที่" name="location">
+            <Input placeholder="เช่น กรุงเทพฯ" />
           </Form.Item>
 
           <Form.Item label="Cost Sharing (แบ่งค่าใช้จ่ายให้โครงการอื่น)">
             <p style={{ fontSize: '12px', color: '#666', marginBottom: 8 }}>
               กำหนดว่าโครงการนี้จะแบ่งค่าใช้จ่าย (เงินเดือนพนักงาน) ให้กับโครงการอื่นกี่ %
             </p>
-            <Form.List name="costSharing">
+            <Form.List name="costSharingFrom">
               {(fields, { add, remove }) => (
                 <>
                   {fields.map(({ key, name, ...restField }) => (

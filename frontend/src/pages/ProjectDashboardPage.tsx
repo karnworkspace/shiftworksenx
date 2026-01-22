@@ -17,7 +17,9 @@ import {
   PhoneOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { mockProjects, mockStaff } from '../data/mockData';
+import { useProjectStore } from '../stores/projectStore';
+import { useStaffStore } from '../stores/staffStore';
+import { useEffect } from 'react';
 
 const { Search } = Input;
 const { Title, Text } = Typography;
@@ -27,8 +29,20 @@ const ProjectDashboardPage: React.FC = () => {
   const [searchResponsible, setSearchResponsible] = useState('');
   const navigate = useNavigate();
 
+  // Use global stores
+  const { projects, fetchProjects } = useProjectStore();
+  const { getActiveStaffByProject, fetchAllStaff } = useStaffStore();
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchProjects();
+    if (projects.length > 0) {
+      fetchAllStaff(projects.map(p => p.id));
+    }
+  }, [projects.length]);
+
   // Filter projects
-  const filteredProjects = mockProjects.filter((project) => {
+  const filteredProjects = projects.filter((project) => {
     const matchName = project.name
       .toLowerCase()
       .includes(searchText.toLowerCase());
@@ -45,9 +59,7 @@ const ProjectDashboardPage: React.FC = () => {
 
   // Count staff per project
   const getStaffCount = (projectId: string) => {
-    return mockStaff.filter(
-      (staff) => staff.projectId === projectId && staff.isActive
-    ).length;
+    return getActiveStaffByProject(projectId).length;
   };
 
   const handleProjectClick = (projectId: string) => {
@@ -96,7 +108,7 @@ const ProjectDashboardPage: React.FC = () => {
       <div style={{ marginTop: '24px' }}>
         <Text type="secondary">
           แสดง {filteredProjects.length} โครงการ จากทั้งหมด{' '}
-          {mockProjects.length} โครงการ
+          {projects.length} โครงการ
         </Text>
 
         <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>

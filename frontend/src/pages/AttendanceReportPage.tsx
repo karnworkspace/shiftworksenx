@@ -22,13 +22,11 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
-import {
-  mockProjects,
-  mockStaff,
-  mockRosterEntries,
-  mockMonthlyAttendance,
-  mockShiftTypes,
-} from '../data/mockData';
+import { mockShiftTypes } from '../data/mockData';
+import { useProjectStore } from '../stores/projectStore';
+import { useStaffStore } from '../stores/staffStore';
+import { useRosterStore } from '../stores/rosterStore';
+import { useEffect } from 'react';
 
 dayjs.extend(buddhistEra);
 dayjs.locale('th');
@@ -51,24 +49,96 @@ interface AttendanceRecord {
 }
 
 const AttendanceReportPage: React.FC = () => {
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('proj-1');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
+
+  // Use global stores
+  const { projects, getProject, fetchProjects } = useProjectStore();
+  const { getStaffByProject, fetchStaff } = useStaffStore();
+  const { rosterMatrix, fetchRoster } = useRosterStore();
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  // Set default project
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects.length]);
+
+  // Fetch staff and roster when project or date changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchStaff(selectedProjectId, true);
+      const year = selectedDate.year();
+      const month = selectedDate.month() + 1;
+      fetchRoster(selectedProjectId, year, month);
+    }
+  }, [selectedProjectId, selectedDate]);
 
   const year = selectedDate.year() + 543;
   const month = selectedDate.month() + 1;
 
   // Get current project
-  const currentProject = mockProjects.find((p) => p.id === selectedProjectId);
+  const currentProject = getProject(selectedProjectId);
 
-  // Build attendance report
+  // Get project staff
+  const projectStaff = getStaffByProject(selectedProjectId).filter(s => s.isActive);
+
+  // Build attendance report from roster data
   const reportData = useMemo(() => {
-    return mockMonthlyAttendance.map((att) => ({
-      ...att,
-      name: att.staff.name,
-      position: att.staff.position,
-      totalHours: att.totalWorkDays * 8, // สมมติว่า 1 วัน = 8 ชม.
-    }));
-  }, []);
+    const daysInMonth = selectedDate.daysInMonth();
+    
+    return projectStaff.map((staff) => {
+      let totalWorkDays = 0;
+      let totalAbsent = 0;
+      let totalSickLeave = 0;
+      let totalPersonalLeave = 0;
+      let totalVacation = 0;
+      let totalLate = 0;
+      
+      // Count from roster matrix
+      for (let day = 1; day <= daysInMonth; day++) {
+        const shiftCode = rosterMatrix?.[staff.id]?.days[day]?.shiftCode || 'OFF';
+        const shiftType = mockShiftTypes.find(st => st.code === shiftCode);
+        
+        if (shiftType?.isWorkShift) {
+          totalWorkDays++;
+        } else if (shiftCode === 'ข') {
+          totalAbsent++;
+        } else if (shiftCode === 'ป') {
+          totalSickLeave++;
+        } else if (shiftCode === 'ก') {
+          totalPersonalLeave++;
+        } else if (shiftCode === 'พ') {
+          totalVacation++;
+        } else if (shiftCode === 'ส') {
+          totalLate++;
+        }
+      }
+      
+      // Calculate deduction (simple formula)
+      const deductionAmount = totalAbsent * 500 + totalLate * 100;
+      
+      return {
+        id: staff.id,
+        staffId: staff.id,
+        name: staff.name,
+        position: staff.position,
+        totalWorkDays,
+        totalAbsent,
+        totalSickLeave,
+        totalPersonalLeave,
+        totalVacation,
+        totalLate,
+        deductionAmount,
+        totalHours: totalWorkDays * 8,
+      };
+    });
+  }, [projectStaff, rosterMatrix, selectedDate]);
 
   // Calculate summary
   const summary = useMemo(() => {
@@ -222,7 +292,7 @@ const AttendanceReportPage: React.FC = () => {
                 style={{ width: 300 }}
                 size="large"
               >
-                {mockProjects.map((proj) => (
+                {projects.map((proj) => (
                   <Select.Option key={proj.id} value={proj.id}>
                     {proj.name}
                   </Select.Option>

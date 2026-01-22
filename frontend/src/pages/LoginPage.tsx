@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { authService } from '@/services/auth.service';
-import { useAuthStore } from '@/stores/authStore';
+import { authService } from '../services/auth.service';
+import { useAuthStore } from '../stores/authStore';
 
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -31,15 +31,34 @@ const LoginPage: React.FC = () => {
       justifyContent: 'center', 
       alignItems: 'center', 
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      background: '#ffffff',
+      backgroundImage: `
+        linear-gradient(45deg, rgba(24, 144, 255, 0.03) 25%, transparent 25%, transparent 75%, rgba(24, 144, 255, 0.03) 75%, rgba(24, 144, 255, 0.03)),
+        linear-gradient(45deg, rgba(24, 144, 255, 0.03) 25%, transparent 25%, transparent 75%, rgba(24, 144, 255, 0.03) 75%, rgba(24, 144, 255, 0.03))
+      `,
+      backgroundSize: '60px 60px',
+      backgroundPosition: '0 0, 30px 30px',
+      position: 'relative'
     }}>
+      {/* Subtle overlay with building icon pattern */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundImage: 'url("data:image/svg+xml,%3Csvg width="100" height="100" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="%231890ff" fill-opacity="0.02"%3E%3Crect x="20" y="30" width="15" height="40" rx="2"/%3E%3Crect x="40" y="20" width="15" height="50" rx="2"/%3E%3Crect x="60" y="35" width="15" height="35" rx="2"/%3E%3C/g%3E%3C/svg%3E")',
+        backgroundSize: '200px 200px',
+        opacity: 0.4,
+        pointerEvents: 'none'
+      }} />
       <Card 
         title="เข้าสู่ระบบ" 
         style={{ width: 400 }}
         headStyle={{ textAlign: 'center', fontSize: '24px', fontWeight: 'bold' }}
       >
-        <h2 style={{ textAlign: 'center', marginBottom: '24px' }}>
-          ระบบจัดการเวรปฏิบัติงาน
+        <h2 style={{ textAlign: 'center', marginBottom: '24px', color: '#1890ff' }}>
+          ระบบบันทึกเวลาทำงาน
         </h2>
         <Form
           name="login"
@@ -86,12 +105,6 @@ const LoginPage: React.FC = () => {
             </Button>
           </Form.Item>
         </Form>
-        
-        <div style={{ textAlign: 'center', color: '#888', marginTop: '16px' }}>
-          <small>
-            ทดสอบ: admin@senx.com / admin123
-          </small>
-        </div>
       </Card>
     </div>
   );

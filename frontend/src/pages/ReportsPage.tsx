@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   Select,
@@ -14,6 +14,7 @@ import {
   Divider,
   Button,
   message,
+  Spin,
 } from 'antd';
 import {
   DollarOutlined,
@@ -23,7 +24,7 @@ import {
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
-import { mockRosterEntries, mockShiftTypes } from '../data/mockData';
+import { mockShiftTypes } from '../data/mockData';
 import { useRosterStore } from '../stores/rosterStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useStaffStore } from '../stores/staffStore';
@@ -35,14 +36,42 @@ dayjs.locale('th');
 
 const ReportsPage: React.FC = () => {
   // Use global stores
-  const { projects, getProject } = useProjectStore();
-  const { getStaffByProject, staff: allStaff } = useStaffStore();
-  const { rosterChanges } = useRosterStore();
+  const { projects, getProject, fetchProjects, loading: projectsLoading } = useProjectStore();
+  const { getStaffByProject, staff: allStaff, fetchStaff, loading: staffLoading } = useStaffStore();
+  const { currentRoster, rosterMatrix, fetchRoster, loading: rosterLoading } = useRosterStore();
   const { deductionConfig } = useSettingsStore();
   
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || '');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
   const [activeTab, setActiveTab] = useState('attendance');
+
+  // Fetch projects on mount
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  // Set default project when projects are loaded
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects]);
+
+  // Fetch staff when project changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchStaff(selectedProjectId, true);
+    }
+  }, [selectedProjectId]);
+
+  // Fetch roster data when project or date changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      const year = selectedDate.year();
+      const month = selectedDate.month() + 1;
+      fetchRoster(selectedProjectId, year, month);
+    }
+  }, [selectedProjectId, selectedDate]);
 
   const year = selectedDate.year();
   const month = selectedDate.month() + 1;
@@ -60,12 +89,10 @@ const ReportsPage: React.FC = () => {
     let totalLate = 0;
     let totalSickLeave = 0;
     
+    if (!rosterMatrix) return { totalAbsent: 0, totalLate: 0, totalSickLeave: 0, absentDeduction: 0, lateDeduction: 0, sickLeaveDeduction: 0, totalDeduction: 0 };
+    
     for (let day = 1; day <= daysInMonth; day++) {
-      const originalEntry = mockRosterEntries.find(
-        (e) => e.staffId === staffId && e.day === day
-      );
-      const originalShift = originalEntry?.shiftCode || 'OFF';
-      const currentShift = rosterChanges[staffId]?.[day] || originalShift;
+      const currentShift = rosterMatrix[staffId]?.days[day]?.shiftCode || 'OFF';
       
       if (currentShift === 'ข') {
         totalAbsent++;
@@ -132,7 +159,7 @@ const ReportsPage: React.FC = () => {
     });
     
     return { totalReceived, details };
-  }, [projects, selectedProjectId, allStaff, selectedDate, rosterChanges, deductionConfig]);
+  }, [projects, selectedProjectId, allStaff, selectedDate, rosterMatrix, deductionConfig]);
 
   // Calculate attendance data dynamically from roster entries
   const attendanceData = useMemo(() => {
@@ -146,16 +173,10 @@ const ReportsPage: React.FC = () => {
       let totalVacation = 0;
       let totalLeave = 0; // รวมการลาทุกประเภท
       
-      // Count days from roster entries + changes
+      // Count days from roster entries
       for (let day = 1; day <= daysInMonth; day++) {
-        // Get original shift from mock data
-        const originalEntry = mockRosterEntries.find(
-          (e) => e.staffId === staff.id && e.day === day
-        );
-        const originalShift = originalEntry?.shiftCode || 'OFF';
-        
-        // Get current shift (with changes applied) - use rosterChanges directly
-        const currentShift = rosterChanges[staff.id]?.[day] || originalShift;
+        // Get current shift from roster matrix
+        const currentShift = rosterMatrix?.[staff.id]?.days[day]?.shiftCode || 'OFF';
         
         // Find shift type
         const shiftType = mockShiftTypes.find((st) => st.code === currentShift);
@@ -214,7 +235,7 @@ const ReportsPage: React.FC = () => {
         netSalary: totalWorkDays * staff.wagePerDay - ownProjectDeduction,
       };
     });
-  }, [projectStaff, currentProject, selectedDate, rosterChanges, deductionConfig]);
+  }, [projectStaff, currentProject, selectedDate, rosterMatrix, deductionConfig]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -310,14 +331,11 @@ const ReportsPage: React.FC = () => {
     const daysInMonth = selectedDate.daysInMonth();
     const rosterDataForPDF: { [staffId: string]: { [day: number]: string } } = {};
     
+    // Prepare roster data for PDF - use rosterMatrix directly
     projectStaff.forEach((staff) => {
       rosterDataForPDF[staff.id] = {};
       for (let day = 1; day <= daysInMonth; day++) {
-        const originalEntry = mockRosterEntries.find(
-          (e) => e.staffId === staff.id && e.day === day
-        );
-        const originalShift = originalEntry?.shiftCode || 'OFF';
-        const currentShift = rosterChanges[staff.id]?.[day] || originalShift;
+        const currentShift = rosterMatrix?.[staff.id]?.days[day]?.shiftCode || 'OFF';
         rosterDataForPDF[staff.id][day] = currentShift;
       }
     });
@@ -379,29 +397,30 @@ const ReportsPage: React.FC = () => {
           </Space>
         }
       >
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          items={[
-            {
-              key: 'attendance',
-              label: '📝 รายงานการเข้าทำงาน',
-              children: (
-                <div>
-                  {/* Summary Cards */}
-                  <Row gutter={16} style={{ marginBottom: 24 }}>
-                    <Col span={4}>
-                      <Card>
-                        <Statistic
-                          title="จำนวนพนักงาน"
-                          value={attendanceData.length}
-                          suffix="คน"
-                        />
-                      </Card>
-                    </Col>
-                    <Col span={4}>
-                      <Card>
-                        <Statistic
+        <Spin spinning={rosterLoading || projectsLoading || staffLoading}>
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            items={[
+              {
+                key: 'attendance',
+                label: '📝 รายงานการเข้าทำงาน',
+                children: (
+                  <div>
+                    {/* Summary Cards */}
+                    <Row gutter={16} style={{ marginBottom: 24 }}>
+                      <Col span={4}>
+                        <Card>
+                          <Statistic
+                            title="จำนวนพนักงาน"
+                            value={attendanceData.length}
+                            suffix="คน"
+                          />
+                        </Card>
+                      </Col>
+                      <Col span={4}>
+                        <Card>
+                          <Statistic
                           title="ขาดงานรวม"
                           value={totals.totalAbsent}
                           suffix="วัน"
@@ -519,6 +538,7 @@ const ReportsPage: React.FC = () => {
             },
           ]}
         />
+        </Spin>
       </Card>
     </div>
   );
