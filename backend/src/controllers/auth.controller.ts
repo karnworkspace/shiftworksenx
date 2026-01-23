@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../types/auth.types';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import bcrypt from 'bcryptjs';
 import { generateTokenPair, verifyRefreshToken } from '../utils/jwt.utils';
-
-const prisma = new PrismaClient();
 
 export const login = async (req: Request, res: Response) => {
   try {
@@ -49,6 +47,7 @@ export const login = async (req: Request, res: Response) => {
         email: user.email,
         name: user.name,
         role: user.role,
+        permissions: user.permissions,
       },
     });
   } catch (error) {
@@ -114,6 +113,7 @@ export const me = async (req: AuthRequest, res: Response) => {
         email: true,
         name: true,
         role: true,
+        permissions: true,
         createdAt: true,
       },
     });

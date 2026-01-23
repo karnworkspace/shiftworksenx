@@ -1,11 +1,6 @@
 import { create } from 'zustand';
 import { projectService, Project, CreateProjectData, UpdateProjectData } from '../services/project.service';
 
-interface CostSharing {
-  destinationProjectId: string;
-  percentage: number;
-}
-
 interface ProjectStore {
   projects: Project[];
   loading: boolean;

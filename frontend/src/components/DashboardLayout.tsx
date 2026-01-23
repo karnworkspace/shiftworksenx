@@ -1,8 +1,8 @@
-import React from 'react';
-import { Layout, Menu, Avatar, Button, Dropdown } from 'antd';
-import { 
-  ProjectOutlined, 
-  TeamOutlined, 
+import React, { useMemo } from 'react';
+import { Layout, Menu, Avatar, Dropdown } from 'antd';
+import {
+  ProjectOutlined,
+  TeamOutlined,
   CalendarOutlined,
   BarChartOutlined,
   UserOutlined,
@@ -14,49 +14,66 @@ import { useAuthStore } from '../stores/authStore';
 
 const { Header, Sider, Content } = Layout;
 
+// กำหนด permission key สำหรับแต่ละเมนู
+const allMenuItems = [
+  {
+    key: '/dashboard/reports',
+    icon: <BarChartOutlined />,
+    label: 'รายงาน',
+    permission: 'reports',
+  },
+  {
+    key: '/dashboard/roster',
+    icon: <CalendarOutlined />,
+    label: 'ตารางเวลาทำงาน',
+    permission: 'roster',
+  },
+  {
+    key: '/dashboard/staff',
+    icon: <TeamOutlined />,
+    label: 'พนักงาน',
+    permission: 'staff',
+  },
+  {
+    key: '/dashboard/projects',
+    icon: <ProjectOutlined />,
+    label: 'โครงการ',
+    permission: 'projects',
+  },
+  {
+    key: '/dashboard/users',
+    icon: <UserOutlined />,
+    label: 'จัดการผู้ใช้',
+    permission: 'users',
+  },
+  {
+    key: '/dashboard/settings',
+    icon: <SettingOutlined />,
+    label: 'ตั้งค่า',
+    permission: 'settings',
+  },
+];
+
 const DashboardLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, logout, hasPermission } = useAuthStore();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const menuItems = [
-    {
-      key: '/dashboard/reports',
-      icon: <BarChartOutlined />,
-      label: 'รายงาน',
-    },
-    {
-      key: '/dashboard/roster',
-      icon: <CalendarOutlined />,
-      label: 'ตารางเวลาทำงาน',
-    },
-    {
-      key: '/dashboard/staff',
-      icon: <TeamOutlined />,
-      label: 'พนักงาน',
-    },
-    {
-      key: '/dashboard/projects',
-      icon: <ProjectOutlined />,
-      label: 'โครงการ',
-    },
-    {
-      key: '/dashboard/settings',
-      icon: <SettingOutlined />,
-      label: 'ตั้งค่า',
-    },
-  ];
+  // Filter เมนูตาม permissions ของผู้ใช้
+  const menuItems = useMemo(() => {
+    return allMenuItems.filter((item) => hasPermission(item.permission));
+  }, [hasPermission, user]);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
+      <Header style={{
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'space-between',
         background: '#001529',
         padding: '0 24px'
@@ -112,3 +129,4 @@ const DashboardLayout: React.FC = () => {
 };
 
 export default DashboardLayout;
+

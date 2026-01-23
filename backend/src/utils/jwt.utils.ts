@@ -7,13 +7,13 @@ const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
 const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 export const generateTokenPair = (payload: JWTPayload): TokenPair => {
-  const accessToken = jwt.sign(payload, ACCESS_SECRET, {
+  const accessToken = jwt.sign(payload as object, ACCESS_SECRET, {
     expiresIn: ACCESS_EXPIRES,
-  });
+  } as jwt.SignOptions);
 
-  const refreshToken = jwt.sign(payload, REFRESH_SECRET, {
+  const refreshToken = jwt.sign(payload as object, REFRESH_SECRET, {
     expiresIn: REFRESH_EXPIRES,
-  });
+  } as jwt.SignOptions);
 
   return { accessToken, refreshToken };
 };

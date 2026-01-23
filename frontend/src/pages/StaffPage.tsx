@@ -12,12 +12,12 @@ import {
   Select,
   message,
   Popconfirm,
-  Spin,
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   StopOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useStaffStore } from '../stores/staffStore';
 import { useProjectStore } from '../stores/projectStore';
@@ -39,9 +39,9 @@ const StaffPage: React.FC = () => {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
   // Use global stores
-  const { projects, fetchProjects, loading: projectsLoading } = useProjectStore();
-  const { addStaff, updateStaff, setStaffInactive, getStaffByProject, fetchStaff, loading: staffLoading } = useStaffStore();
-  
+  const { projects, fetchProjects } = useProjectStore();
+  const { addStaff, updateStaff, setStaffInactive, getStaffByProject, fetchStaff } = useStaffStore();
+
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [form] = Form.useForm();
 
@@ -94,9 +94,9 @@ const StaffPage: React.FC = () => {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      
+
       console.log('Form values:', values);
-      
+
       if (editingStaff) {
         console.log('Updating staff:', editingStaff.id, values);
         const result = await updateStaff(editingStaff.id, {
@@ -122,7 +122,7 @@ const StaffPage: React.FC = () => {
           phone: values.phone,
           wagePerDay: values.wagePerDay || 500,
           staffType: 'REGULAR',
-          defaultShift: '1',
+          defaultShift: 'OFF',
           projectId: selectedProjectId,
           remark: values.remark,
         });
@@ -134,7 +134,7 @@ const StaffPage: React.FC = () => {
           return;
         }
       }
-      
+
       setIsModalOpen(false);
       form.resetFields();
       setEditingStaff(null);
@@ -148,7 +148,7 @@ const StaffPage: React.FC = () => {
   const handleInactive = async (id: string) => {
     const result = await setStaffInactive(id);
     if (result) {
-      message.success('เปลี่ยนสถานะพนักงานสำเร็จ');
+      message.success('อัพเดทสถานะสำเร็จ');
     } else {
       message.error('เปลี่ยนสถานะไม่สำเร็จ');
     }
@@ -206,11 +206,18 @@ const StaffPage: React.FC = () => {
             onClick={() => handleEdit(record)}
           />
           <Popconfirm
-            title="ยืนยันการเปลี่ยนสถานะ?"
-            description="คุณต้องการเปลี่ยนสถานะพนักงานเป็น Inactive หรือไม่?"
+            title={record.isActive ? "ยืนยันการระงับการใช้งาน?" : "ยืนยันการเปิดใช้งาน?"}
+            description={record.isActive ? "คุณต้องการเปลี่ยนสถานะพนักงานเป็น Inactive หรือไม่?" : "คุณต้องการเปลี่ยนสถานะพนักงานเป็น Active หรือไม่?"}
             onConfirm={() => handleInactive(record.id)}
+            okText="ยืนยัน"
+            cancelText="ยกเลิก"
           >
-            <Button type="text" danger icon={<StopOutlined />} title="Inactive" />
+            <Button
+              type="text"
+              danger={record.isActive}
+              icon={record.isActive ? <StopOutlined /> : <CheckCircleOutlined />}
+              title={record.isActive ? "ระงับการใช้งาน" : "เปิดใช้งาน"}
+            />
           </Popconfirm>
         </Space>
       ),

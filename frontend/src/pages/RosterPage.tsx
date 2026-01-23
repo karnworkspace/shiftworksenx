@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Card,
   Select,
@@ -32,6 +32,51 @@ interface Staff {
   projectId: string;
 }
 
+// Memoized Cell Component to prevent unnecessary re-renders
+const ShiftCell = React.memo(({ 
+  staffId, 
+  day, 
+  shiftCode, 
+  shiftType, 
+  isSelected, 
+  isToday, 
+  onClick 
+}: { 
+  staffId: string; 
+  day: number; 
+  shiftCode: string; 
+  shiftType: any; 
+  isSelected: boolean; 
+  isToday: boolean; 
+  onClick: (staffId: string, day: number, shiftCode: string) => void;
+}) => {
+  const cellBackgroundColor = shiftType?.color || '#f0f0f0';
+  const textColor = shiftType?.isWorkShift ? '#fff' : '#595959';
+  
+  return (
+    <div
+      onClick={() => onClick(staffId, day, shiftCode)}
+      style={{
+        cursor: 'pointer',
+        padding: '3px 2px',
+        textAlign: 'center',
+        backgroundColor: cellBackgroundColor,
+        color: textColor,
+        borderRadius: '3px',
+        fontWeight: '600',
+        fontSize: '10px',
+        userSelect: 'none',
+        border: isSelected ? '2px solid #1890ff' : (isToday ? '2px solid #52c41a' : '1px solid #e8e8e8'),
+        transition: 'all 0.2s',
+      }}
+    >
+      {shiftCode}
+    </div>
+  );
+});
+
+ShiftCell.displayName = 'ShiftCell';
+
 const RosterPage: React.FC = () => {
   // Use global stores
   const { projects, fetchProjects, loading: projectsLoading } = useProjectStore();
@@ -56,9 +101,13 @@ const RosterPage: React.FC = () => {
     currentShift: string;
   } | null>(null);
 
-  // Fetch projects on mount
+  // Fetch projects and shift types on mount (only once)
   useEffect(() => {
     fetchProjects();
+    const { fetchShiftTypes, shiftTypes } = useSettingsStore.getState();
+    if (shiftTypes.length === 0) {
+      fetchShiftTypes();
+    }
   }, []);
 
   // Set default project when projects are loaded
@@ -66,14 +115,14 @@ const RosterPage: React.FC = () => {
     if (projects.length > 0 && !selectedProjectId) {
       setSelectedProjectId(projects[0].id);
     }
-  }, [projects]);
+  }, [projects, selectedProjectId]);
 
   // Fetch staff when project changes
   useEffect(() => {
     if (selectedProjectId) {
       fetchStaff(selectedProjectId, true);
     }
-  }, [selectedProjectId]);
+  }, [selectedProjectId, fetchStaff]);
 
   const year = selectedDate.year();
   const month = selectedDate.month() + 1;
@@ -92,14 +141,14 @@ const RosterPage: React.FC = () => {
   // Filter staff by project using store (only active staff)
   const projectStaff = getStaffByProject(selectedProjectId).filter(staff => staff.isActive);
 
-  // Handle cell click - open modal
-  const handleCellClick = (staffId: string, day: number, currentShift: string) => {
+  // Handle cell click - open modal (memoized)
+  const handleCellClick = useCallback((staffId: string, day: number, currentShift: string) => {
     setEditingCell({ staffId, day, currentShift });
     setIsShiftModalOpen(true);
-  };
+  }, []);
 
-  // Handle shift selection
-  const handleShiftSelect = async (newShift: string) => {
+  // Handle shift selection (memoized)
+  const handleShiftSelect = useCallback(async (newShift: string) => {
     // Prevent double-click
     if (isUpdating) {
       return;
@@ -107,13 +156,6 @@ const RosterPage: React.FC = () => {
     
     if (editingCell && currentRoster) {
       const { staffId, day } = editingCell;
-      
-      console.log('Updating roster entry:', {
-        rosterId: currentRoster.id,
-        staffId,
-        day,
-        shiftCode: newShift
-      });
       
       setIsUpdating(true);
       
@@ -138,10 +180,9 @@ const RosterPage: React.FC = () => {
         setIsUpdating(false);
       }
     } else {
-      console.log('Missing data:', { editingCell, currentRoster });
       message.error('ไม่พบข้อมูล roster กรุณาลองรีเฟรชหน้า');
     }
-  };
+  }, [isUpdating, editingCell, currentRoster, updateRosterEntry, shiftTypes]);
 
   // Use roster matrix from store (already loaded by fetchRoster)
   // rosterMatrix is already available from useRosterStore
@@ -196,36 +237,24 @@ const RosterPage: React.FC = () => {
         render: (_: any, staff: Staff) => {
           const shiftCode = rosterMatrix?.[staff.id]?.days[day]?.shiftCode || 'OFF';
           const shiftType = shiftTypes.find((st) => st.code === shiftCode);
-
-          const cellBackgroundColor = shiftType?.color || '#f0f0f0';
-          const textColor = shiftType?.isWorkShift ? '#fff' : '#595959';
           
           return (
-            <div
-              onClick={() => handleCellClick(staff.id, day, shiftCode)}
-              style={{
-                cursor: 'pointer',
-                padding: '3px 2px',
-                textAlign: 'center',
-                backgroundColor: cellBackgroundColor,
-                color: textColor,
-                borderRadius: '3px',
-                fontWeight: '600',
-                fontSize: '10px',
-                userSelect: 'none',
-                border: isSelected ? '2px solid #1890ff' : (isToday ? '2px solid #52c41a' : '1px solid #e8e8e8'),
-                transition: 'all 0.2s',
-              }}
-            >
-              {shiftCode}
-            </div>
+            <ShiftCell
+              staffId={staff.id}
+              day={day}
+              shiftCode={shiftCode}
+              shiftType={shiftType}
+              isSelected={isSelected}
+              isToday={isToday}
+              onClick={handleCellClick}
+            />
           );
         },
       });
     }
 
     return baseColumns;
-  }, [projectStaff, rosterMatrix, daysInMonth, selectedDay, shiftTypes]);
+  }, [projectStaff, rosterMatrix, daysInMonth, selectedDay, currentDay, isCurrentMonth, shiftTypes, handleCellClick]);
 
   // Calculate selected day's statistics
   const selectedDayStats = useMemo(() => {
@@ -236,18 +265,32 @@ const RosterPage: React.FC = () => {
 
     if (!rosterMatrix) return { working, absent, leave, off };
 
+    // Find shift codes for different categories
+    const absentShift = shiftTypes.find(s => s.code === 'ขาด' || s.code === 'ข');
+    const leaveShift = shiftTypes.find(s => s.code === 'ลา' || s.code === 'ล');
+    const offShift = shiftTypes.find(s => s.code === 'OFF' || s.code === 'หยุด');
+
     projectStaff.forEach((staff) => {
       const shift = rosterMatrix[staff.id]?.days[selectedDay]?.shiftCode;
-      const shiftType = shiftTypes.find((st) => st.code === shift);
       
-      if (shiftType?.isWorkShift) {
-        working++;
-      } else if (shift === 'ข') {
+      if (!shift || shift === 'OFF' || shift === (offShift?.code)) {
+        // No shift assigned or OFF/หยุด
+        off++;
+      } else if (shift === absentShift?.code) {
+        // Absent shift
         absent++;
-      } else if (['ป', 'ก', 'พ'].includes(shift || '')) {
+      } else if (shift === leaveShift?.code) {
+        // Leave shift
         leave++;
       } else {
-        off++;
+        // Check if it's a work shift
+        const shiftType = shiftTypes.find((st) => st.code === shift);
+        if (shiftType?.isWorkShift) {
+          working++;
+        } else {
+          // Other non-working shifts
+          off++;
+        }
       }
     });
 

@@ -1,8 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types/auth.types';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
+import { decimalToNumber } from '../utils/decimal';
 
 export const getAllProjects = async (req: AuthRequest, res: Response) => {
   try {
@@ -37,7 +36,15 @@ export const getAllProjects = async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    return res.json({ projects });
+    const projectsWithNumbers = projects.map((p) => ({
+      ...p,
+      costSharingFrom: p.costSharingFrom.map((cs) => ({
+        ...cs,
+        percentage: decimalToNumber(cs.percentage),
+      })),
+    }));
+
+    return res.json({ projects: projectsWithNumbers });
   } catch (error) {
     console.error('Get projects error:', error);
     return res.status(500).json({ error: 'Failed to fetch projects' });
@@ -74,7 +81,7 @@ export const getProjectById = async (req: AuthRequest, res: Response) => {
             id: true,
             name: true,
             position: true,
-            type: true,
+            // staffType: true,
           },
         },
       },
@@ -84,7 +91,19 @@ export const getProjectById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'ไม่พบโครงการ' });
     }
 
-    return res.json({ project });
+    return res.json({
+      project: {
+        ...project,
+        costSharingFrom: project.costSharingFrom.map((cs) => ({
+          ...cs,
+          percentage: decimalToNumber(cs.percentage),
+        })),
+        costSharingTo: project.costSharingTo.map((cs) => ({
+          ...cs,
+          percentage: decimalToNumber(cs.percentage),
+        })),
+      },
+    });
   } catch (error) {
     console.error('Get project error:', error);
     return res.status(500).json({ error: 'Failed to fetch project' });
@@ -182,7 +201,18 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    return res.json({ success: true, project });
+    return res.json({
+      success: true,
+      project: project
+        ? {
+            ...project,
+            costSharingFrom: project.costSharingFrom.map((cs) => ({
+              ...cs,
+              percentage: decimalToNumber(cs.percentage),
+            })),
+          }
+        : project,
+    });
   } catch (error) {
     console.error('Update project error:', error);
     return res.status(500).json({ error: 'Failed to update project' });

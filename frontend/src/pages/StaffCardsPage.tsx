@@ -25,7 +25,6 @@ import {
   PhoneOutlined,
   IdcardOutlined,
   DollarOutlined,
-  SearchOutlined,
 } from '@ant-design/icons';
 import { useProjectStore } from '../stores/projectStore';
 import { useStaffStore } from '../stores/staffStore';
@@ -61,7 +60,7 @@ const StaffCardsPage: React.FC = () => {
 
   // Use global stores
   const { projects, fetchProjects } = useProjectStore();
-  const { staff, addStaff, updateStaff, setStaffInactive, fetchAllStaff } = useStaffStore();
+  const { staff, fetchAllStaff, addStaff, updateStaff, deleteStaff, fetchStaff } = useStaffStore();
 
   // Fetch data on mount
   useEffect(() => {
@@ -126,18 +125,57 @@ const StaffCardsPage: React.FC = () => {
     try {
       const values = await form.validateFields();
       console.log('Save staff:', editingStaff ? 'edit' : 'create', values);
-      message.success(
-        editingStaff ? 'แก้ไขพนักงานสำเร็จ' : 'เพิ่มพนักงานสำเร็จ'
-      );
+      
+      const staffData = {
+        name: values.name,
+        position: values.position,
+        phone: values.phone || undefined,
+        wagePerDay: values.wagePerDay,
+        staffType: values.staffType,
+        code: values.code,
+        availability: values.availability,
+        projectId: selectedProjectId,
+      };
+
+      if (editingStaff) {
+        const result = await updateStaff(editingStaff.id, staffData);
+        if (result) {
+          message.success('แก้ไขพนักงานสำเร็จ');
+          await fetchStaff(selectedProjectId, true);
+        } else {
+          message.error('ไม่สามารถแก้ไขพนักงานได้');
+        }
+      } else {
+        const result = await addStaff(staffData);
+        if (result) {
+          message.success('เพิ่มพนักงานสำเร็จ');
+          await fetchStaff(selectedProjectId, true);
+        } else {
+          message.error('ไม่สามารถเพิ่มพนักงานได้');
+        }
+      }
       setIsModalOpen(false);
+      form.resetFields();
+      setEditingStaff(null);
     } catch (error) {
-      console.error('Validation failed:', error);
+      console.error('Validation failed or submission error:', error);
+      message.error('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
     }
   };
 
-  const handleDelete = (id: string) => {
-    console.log('Delete staff:', id);
-    message.success('ลบพนักงานสำเร็จ');
+  const handleDelete = async (id: string) => {
+    try {
+      const result = await deleteStaff(id);
+      if (result) {
+        message.success('ลบพนักงานสำเร็จ');
+        await fetchStaff(selectedProjectId, true);
+      } else {
+        message.error('ไม่สามารถลบพนักงานได้');
+      }
+    } catch (error) {
+      console.error('Delete failed:', error);
+      message.error('เกิดข้อผิดพลาดในการลบข้อมูล');
+    }
   };
 
   const currentProject = projects.find((p) => p.id === selectedProjectId);

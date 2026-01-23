@@ -256,6 +256,8 @@ npx prisma migrate dev
 
 ## 🚀 Production Deployment
 
+ดูรายละเอียดแบบ step-by-step และไฟล์ `.zip` สำหรับอัปโหลดได้ที่ `DEPLOY_GUIDE.md`
+
 ### Backend
 ```bash
 npm run build

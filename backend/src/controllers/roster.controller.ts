@@ -1,11 +1,6 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types/auth.types';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-// Valid shift codes (support all shifts from frontend)
-const VALID_SHIFT_CODES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'ดึก', 'OFF', 'ข', 'ป', 'ก', 'พ'];
+import { prisma } from '../lib/prisma';
 
 /**
  * Get roster for a specific project and month
@@ -106,7 +101,7 @@ export const getRoster = async (req: AuthRequest, res: Response) => {
         days: {},
       };
 
-      // Fill with default shift or OFF
+      // Default each day to staff's defaultShift or OFF
       for (let day = 1; day <= daysInMonth; day++) {
         rosterMatrix[staff.id].days[day] = {
           shiftCode: staff.defaultShift || 'OFF',
@@ -155,9 +150,15 @@ export const updateRosterEntry = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    if (!VALID_SHIFT_CODES.includes(shiftCode)) {
+    // Get valid shift codes from database
+    const validShifts = await prisma.shiftType.findMany({
+      select: { code: true },
+    });
+    const validShiftCodes = validShifts.map(s => s.code);
+
+    if (!validShiftCodes.includes(shiftCode)) {
       return res.status(400).json({
-        error: `Invalid shift code. Valid codes: ${VALID_SHIFT_CODES.join(', ')}`,
+        error: `Invalid shift code. Valid codes: ${validShiftCodes.join(', ')}`,
       });
     }
 
@@ -238,6 +239,12 @@ export const batchUpdateRosterEntries = async (req: AuthRequest, res: Response) 
       return res.status(404).json({ error: 'Roster not found' });
     }
 
+    // Get valid shift codes from database
+    const validShifts = await prisma.shiftType.findMany({
+      select: { code: true },
+    });
+    const validShiftCodes = validShifts.map(s => s.code);
+
     // Validate all entries
     for (const entry of entries) {
       if (!entry.staffId || !entry.day || !entry.shiftCode) {
@@ -246,9 +253,9 @@ export const batchUpdateRosterEntries = async (req: AuthRequest, res: Response) 
         });
       }
 
-      if (!VALID_SHIFT_CODES.includes(entry.shiftCode)) {
+      if (!validShiftCodes.includes(entry.shiftCode)) {
         return res.status(400).json({
-          error: `Invalid shift code: ${entry.shiftCode}`,
+          error: `Invalid shift code: ${entry.shiftCode}. Valid codes: ${validShiftCodes.join(', ')}`,
         });
       }
     }
@@ -312,6 +319,18 @@ export const getRosterDayStats = async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Get all shift types
+    const shiftTypes = await prisma.shiftType.findMany();
+    const workShiftCodes = shiftTypes.filter(s => s.isWorkShift).map(s => s.code);
+    const absentShift = shiftTypes.find(s => s.code === 'ขาด' || s.code === 'ข');
+    const absentCode = absentShift?.code || 'ขาด';
+    const sickLeaveShift = shiftTypes.find(s => s.code === 'ป่วย' || s.code === 'ป');
+    const sickCode = sickLeaveShift?.code || 'ป';
+    const personalLeaveShift = shiftTypes.find(s => s.code === 'กิจ' || s.code === 'ก');
+    const personalCode = personalLeaveShift?.code || 'ก';
+    const vacationShift = shiftTypes.find(s => s.code === 'ลา' || s.code === 'พ');
+    const vacationCode = vacationShift?.code || 'พ';
+
     // Calculate statistics
     const stats = {
       day: dayNum,
@@ -329,17 +348,17 @@ export const getRosterDayStats = async (req: AuthRequest, res: Response) => {
       const shift = entry.shiftCode;
 
       // Count by category
-      if (['1', '2', '3', 'ดึก'].includes(shift)) {
+      if (workShiftCodes.includes(shift)) {
         stats.working++;
       } else if (shift === 'OFF') {
         stats.off++;
-      } else if (shift === 'ข') {
+      } else if (shift === absentCode) {
         stats.absent++;
-      } else if (shift === 'ป') {
+      } else if (shift === sickCode) {
         stats.sickLeave++;
-      } else if (shift === 'ก') {
+      } else if (shift === personalCode) {
         stats.personalLeave++;
-      } else if (shift === 'พ') {
+      } else if (shift === vacationCode) {
         stats.vacation++;
       }
 

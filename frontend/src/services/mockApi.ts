@@ -3,7 +3,6 @@ import {
   mockStaff,
   mockRoster,
   mockRosterEntries,
-  mockMonthlyAttendance,
   mockDeductionReport,
   mockCostSharingReport,
   mockDashboardStats,
@@ -48,7 +47,7 @@ export const mockApi = {
     return { ...project, ...data, updatedAt: new Date().toISOString() };
   },
 
-  async deleteProject(id: string) {
+  async deleteProject(_id: string) {
     if (!USE_MOCK_DATA) throw new Error('Use real API');
     await delay(500);
     return { success: true };
@@ -104,7 +103,7 @@ export const mockApi = {
     return { ...staff, isActive: !staff.isActive, updatedAt: new Date().toISOString() };
   },
 
-  async deleteStaff(id: string) {
+  async deleteStaff(_id: string) {
     if (!USE_MOCK_DATA) throw new Error('Use real API');
     await delay(500);
     return { success: true };
@@ -161,19 +160,19 @@ export const mockApi = {
   },
 
   // Reports
-  async getDeductionReport(projectId: string, year: number, month: number) {
+  async getDeductionReport(_projectId: string, _year: number, _month: number) {
     if (!USE_MOCK_DATA) throw new Error('Use real API');
     await delay(800);
     return mockDeductionReport;
   },
 
-  async getCostSharingReport(projectId: string, year: number, month: number) {
+  async getCostSharingReport(_projectId: string, _year: number, _month: number) {
     if (!USE_MOCK_DATA) throw new Error('Use real API');
     await delay(800);
     return mockCostSharingReport;
   },
 
-  async exportReportCSV(type: string, projectId: string, year: number, month: number) {
+  async exportReportCSV(type: string, _projectId: string, _year: number, _month: number) {
     if (!USE_MOCK_DATA) throw new Error('Use real API');
     await delay(1000);
     
@@ -184,7 +183,7 @@ export const mockApi = {
       csvContent = 'รายงานการหักเงิน\n';
       csvContent += 'ชื่อ,ตำแหน่ง,วันทำงาน,วันขาด,วันสาย,หัก (บาท)\n';
       mockDeductionReport.details.forEach((att) => {
-        csvContent += `${att.staff.name},${att.staff.position},${att.workDays},${att.absentDays},${att.lateDays},${att.totalDeduction}\n`;
+        csvContent += `${att.staff.name},${att.staff.position},${att.totalWorkDays},${att.totalAbsent},${att.totalLate},${att.deductionAmount}\n`;
       });
     } else if (type === 'cost-sharing') {
       csvContent = 'รายงาน Cost Sharing\n';

@@ -4,7 +4,6 @@ import {
   Row,
   Col,
   Statistic,
-  Tag,
   Space,
   Select,
   DatePicker,
@@ -12,7 +11,6 @@ import {
   Divider,
   Typography,
   Table,
-  Spin,
 } from 'antd';
 import {
   ProjectOutlined,
@@ -55,7 +53,7 @@ interface AttendanceRecord {
 
 const DashboardPage: React.FC = () => {
   const { projects, fetchProjects, loading: projectsLoading } = useProjectStore();
-  const { staff, fetchStaff, loading: staffLoading } = useStaffStore();
+  const { staff, fetchStaff } = useStaffStore();
   
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
@@ -79,11 +77,6 @@ const DashboardPage: React.FC = () => {
     }
   }, [selectedProjectId]);
 
-  const year = selectedDate.year() + 543;
-  const month = selectedDate.month() + 1;
-
-  // Get current project
-  const currentProject = projects.find((p) => p.id === selectedProjectId);
 
   // Summary Statistics
   const totalProjects = projects.length;

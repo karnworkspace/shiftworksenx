@@ -696,7 +696,11 @@ export const mockCostSharingReport = {
   year: 2569,
   month: 1,
   totalCost: 55420,
-  sharings: [],
+  sharings: [] as Array<{
+    destinationProject: { id: string; name: string };
+    percentage: number;
+    amount: number;
+  }>,
   remainingCost: 55420,
   remainingPercentage: 100,
 };

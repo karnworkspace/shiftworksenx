@@ -14,6 +14,8 @@ import projectRoutes from './routes/project.routes';
 import staffRoutes from './routes/staff.routes';
 import rosterRoutes from './routes/roster.routes';
 import reportRoutes from './routes/report.routes';
+import userRoutes from './routes/user.routes';
+import shiftRoutes from './routes/shift.routes';
 
 const app: Express = express();
 const PORT = process.env.PORT || 5000;
@@ -41,6 +43,8 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/rosters', rosterRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/shifts', shiftRoutes);
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {
@@ -57,9 +61,27 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server is running on http://localhost:${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+});
+
+server.on('error', (error: any) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use`);
+  } else {
+    console.error('❌ Server error:', error);
+  }
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
 });
 
 export default app;

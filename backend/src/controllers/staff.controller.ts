@@ -1,8 +1,8 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types/auth.types';
-import { PrismaClient, StaffType } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { StaffType } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { decimalToNumber } from '../utils/decimal';
 
 /**
  * Get all staff for a project
@@ -39,7 +39,12 @@ export const getAllStaff = async (req: AuthRequest, res: Response) => {
       ],
     });
 
-    return res.json({ staff });
+    const staffWithNumbers = staff.map((s) => ({
+      ...s,
+      wagePerDay: decimalToNumber(s.wagePerDay),
+    }));
+
+    return res.json({ staff: staffWithNumbers });
   } catch (error) {
     console.error('Get staff error:', error);
     return res.status(500).json({ error: 'Failed to fetch staff' });
@@ -69,7 +74,12 @@ export const getStaffById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Staff not found' });
     }
 
-    return res.json({ staff });
+    return res.json({
+      staff: {
+        ...staff,
+        wagePerDay: decimalToNumber(staff.wagePerDay),
+      },
+    });
   } catch (error) {
     console.error('Get staff by ID error:', error);
     return res.status(500).json({ error: 'Failed to fetch staff' });
@@ -92,14 +102,16 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
       remark,
     } = req.body;
 
+    const wagePerDayNum = Number(wagePerDay);
+
     // Validation
-    if (!name || !position || !wagePerDay || !projectId) {
+    if (!name || !position || wagePerDay === undefined || wagePerDay === null || !projectId) {
       return res.status(400).json({
         error: 'Name, position, wage per day, and project ID are required',
       });
     }
 
-    if (wagePerDay <= 0) {
+    if (!Number.isFinite(wagePerDayNum) || wagePerDayNum <= 0) {
       return res.status(400).json({ error: 'Wage per day must be positive' });
     }
 
@@ -117,9 +129,9 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
         name,
         position,
         phone,
-        wagePerDay,
+        wagePerDay: wagePerDayNum,
         staffType: staffType || StaffType.REGULAR,
-        defaultShift: defaultShift || '1',
+        defaultShift: defaultShift || 'OFF',
         projectId,
         remark,
         isActive: true,
@@ -134,7 +146,12 @@ export const createStaff = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    return res.status(201).json({ staff });
+    return res.status(201).json({
+      staff: {
+        ...staff,
+        wagePerDay: decimalToNumber(staff.wagePerDay),
+      },
+    });
   } catch (error) {
     console.error('Create staff error:', error);
     return res.status(500).json({ error: 'Failed to create staff' });
@@ -158,6 +175,8 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
       remark,
     } = req.body;
 
+    const wagePerDayNum = wagePerDay !== undefined ? Number(wagePerDay) : undefined;
+
     // Check if staff exists
     const existingStaff = await prisma.staff.findUnique({
       where: { id },
@@ -168,7 +187,7 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
     }
 
     // Validation
-    if (wagePerDay !== undefined && wagePerDay <= 0) {
+    if (wagePerDayNum !== undefined && (!Number.isFinite(wagePerDayNum) || wagePerDayNum <= 0)) {
       return res.status(400).json({ error: 'Wage per day must be positive' });
     }
 
@@ -178,7 +197,7 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
         ...(name !== undefined && { name }),
         ...(position !== undefined && { position }),
         ...(phone !== undefined && { phone }),
-        ...(wagePerDay !== undefined && { wagePerDay }),
+        ...(wagePerDayNum !== undefined && { wagePerDay: wagePerDayNum }),
         ...(staffType !== undefined && { staffType }),
         ...(defaultShift !== undefined && { defaultShift }),
         ...(isActive !== undefined && { isActive }),
@@ -194,7 +213,12 @@ export const updateStaff = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    return res.json({ staff });
+    return res.json({
+      staff: {
+        ...staff,
+        wagePerDay: decimalToNumber(staff.wagePerDay),
+      },
+    });
   } catch (error) {
     console.error('Update staff error:', error);
     return res.status(500).json({ error: 'Failed to update staff' });

@@ -37,3 +37,11 @@ next-env.d.ts
 
 # prisma
 prisma/migrations
+
+# build outputs
+frontend/dist/
+backend/dist/
+
+# deploy artifacts (optional - uncomment if you don't want zip files in repo)
+# deploy/*.zip
+# deploy/backend-deploy/

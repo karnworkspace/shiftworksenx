@@ -2,6 +2,7 @@ import html2pdf from 'html2pdf.js';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
+import senxLogoUrl from '../assets/senx-logo.webp';
 
 dayjs.extend(buddhistEra);
 dayjs.locale('th');
@@ -63,7 +64,17 @@ const formatThaiDateFull = (date: Dayjs) => {
   return `${day} ${month} ${year}`;
 };
 
-export const generateMonthlyReport = (data: ReportData) => {
+const preloadImage = (src: string) =>
+  new Promise<void>((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = src;
+  });
+
+export const generateMonthlyReport = async (data: ReportData) => {
+  await preloadImage(senxLogoUrl);
+
   const daysInMonth = data.month.daysInMonth();
   
   // Build day headers HTML
@@ -109,7 +120,9 @@ export const generateMonthlyReport = (data: ReportData) => {
         <table style="width: 100%;">
           <tr>
             <td style="width: 12%; text-align: center; vertical-align: middle;">
-              <div style="width: 55px; height: 55px; border: 1px solid #ccc; margin: auto; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #999;">LOGO</div>
+              <div style="width: 55px; height: 55px; border: 1px solid #000; background: #141414; margin: auto; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                <img src="${senxLogoUrl}" alt="Sen-X" style="max-width: 50px; max-height: 45px; object-fit: contain;" />
+              </div>
             </td>
             <td style="width: 76%; text-align: center; vertical-align: middle;">
               <div style="font-size: 20px; font-weight: bold; margin-bottom: 4px;">รายงานการปฏิบัติงานประจำเดือน</div>
@@ -259,7 +272,7 @@ export const generateMonthlyReport = (data: ReportData) => {
   };
 
   // Generate PDF
-  html2pdf()
+  return html2pdf()
     .set(opt)
     .from(pdfContent)
     .save()

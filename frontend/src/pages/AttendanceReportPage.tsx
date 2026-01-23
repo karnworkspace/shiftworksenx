@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   Table,
@@ -26,12 +26,11 @@ import { mockShiftTypes } from '../data/mockData';
 import { useProjectStore } from '../stores/projectStore';
 import { useStaffStore } from '../stores/staffStore';
 import { useRosterStore } from '../stores/rosterStore';
-import { useEffect } from 'react';
 
 dayjs.extend(buddhistEra);
 dayjs.locale('th');
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 interface AttendanceRecord {
   id: string;
@@ -53,7 +52,7 @@ const AttendanceReportPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
 
   // Use global stores
-  const { projects, getProject, fetchProjects } = useProjectStore();
+  const { projects, fetchProjects } = useProjectStore();
   const { getStaffByProject, fetchStaff } = useStaffStore();
   const { rosterMatrix, fetchRoster } = useRosterStore();
 
@@ -79,11 +78,6 @@ const AttendanceReportPage: React.FC = () => {
     }
   }, [selectedProjectId, selectedDate]);
 
-  const year = selectedDate.year() + 543;
-  const month = selectedDate.month() + 1;
-
-  // Get current project
-  const currentProject = getProject(selectedProjectId);
 
   // Get project staff
   const projectStaff = getStaffByProject(selectedProjectId).filter(s => s.isActive);

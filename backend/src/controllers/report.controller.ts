@@ -1,9 +1,8 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types/auth.types';
-import { PrismaClient } from '@prisma/client';
-import { calculateCostSharing, CostSharingCalculation } from '../../lib/cost-sharing';
-
-const prisma = new PrismaClient();
+import { calculateCostSharing, CostSharingCalculation } from '../lib/cost-sharing';
+import { prisma } from '../lib/prisma';
+import { decimalToNumber } from '../utils/decimal';
 
 /**
  * Calculate monthly attendance and deductions for a staff
@@ -22,12 +21,26 @@ async function calculateMonthlyAttendance(
     throw new Error('Staff not found');
   }
 
+  const wagePerDay = decimalToNumber(staff.wagePerDay);
+
   const entries = await prisma.rosterEntry.findMany({
     where: {
       rosterId,
       staffId,
     },
   });
+
+  // Get all shift types to determine work shifts
+  const shiftTypes = await prisma.shiftType.findMany();
+  const workShiftCodes = shiftTypes.filter(s => s.isWorkShift).map(s => s.code);
+  const absentShift = shiftTypes.find(s => s.code === 'ขาด' || s.code === 'ข');
+  const absentCode = absentShift?.code || 'ขาด';
+  const sickLeaveShift = shiftTypes.find(s => s.code === 'ป่วย' || s.code === 'ป');
+  const sickCode = sickLeaveShift?.code || 'ป';
+  const personalLeaveShift = shiftTypes.find(s => s.code === 'กิจ' || s.code === 'ก');
+  const personalCode = personalLeaveShift?.code || 'ก';
+  const vacationShift = shiftTypes.find(s => s.code === 'ลา' || s.code === 'พ');
+  const vacationCode = vacationShift?.code || 'พ';
 
   // Count different types
   let totalWorkDays = 0;
@@ -38,30 +51,32 @@ async function calculateMonthlyAttendance(
 
   entries.forEach((entry) => {
     const shift = entry.shiftCode;
-    if (['1', '2', '3', 'ดึก'].includes(shift)) {
+    if (workShiftCodes.includes(shift)) {
       totalWorkDays++;
-    } else if (shift === 'ข') {
+    } else if (shift === absentCode) {
       totalAbsent++;
-    } else if (shift === 'ป') {
+    } else if (shift === sickCode) {
       totalSickLeave++;
-    } else if (shift === 'ก') {
+    } else if (shift === personalCode) {
       totalPersonalLeave++;
-    } else if (shift === 'พ') {
+    } else if (shift === vacationCode) {
       totalVacation++;
     }
   });
 
+  console.log(`[Staff ${staff.name}] Attendance: workDays=${totalWorkDays}, absent=${totalAbsent}(code: ${absentCode}), sick=${totalSickLeave}, personal=${totalPersonalLeave}, vacation=${totalVacation}`);
+
   // Calculate deduction (absent days * wage per day)
-  const deductionAmount = totalAbsent * staff.wagePerDay;
+  const deductionAmount = totalAbsent * wagePerDay;
 
   // Calculate expected salary
-  const expectedSalary = totalWorkDays * staff.wagePerDay;
+  const expectedSalary = totalWorkDays * wagePerDay;
 
   return {
     staffId,
     staffName: staff.name,
     position: staff.position,
-    wagePerDay: staff.wagePerDay,
+    wagePerDay,
     totalWorkDays,
     totalAbsent,
     totalSickLeave,

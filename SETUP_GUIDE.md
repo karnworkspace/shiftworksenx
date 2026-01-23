@@ -235,7 +235,7 @@ taskkill /PID <PID> /F
 1. **ปรับแต่ง UI:** แก้สี, โลโก้, ชื่อบริษัท
 2. **เพิ่มข้อมูลจริง:** ลบข้อมูลตัวอย่างและเพิ่มข้อมูลจริง
 3. **ตั้งค่า Email Notifications** (ถ้าต้องการ)
-4. **Deploy ไปยัง Production** (Vercel, Railway, หรือ VPS)
+4. **Deploy ไปยัง Production** (ดูรายละเอียดที่ `DEPLOY_GUIDE.md`)
 
 ---
 

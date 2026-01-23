@@ -1,0 +1,109 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build Frontend & Backend
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      # Build Backend
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Build Backend
+        working-directory: ./backend
+        run: npm run build
+
+      # Build Frontend
+      - name: Install Frontend Dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build Frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      # Package Backend for Deploy
+      - name: Package Backend Deploy Files
+        run: |
+          mkdir -p deploy/backend-deploy
+          cp -r backend/dist deploy/backend-deploy/
+          cp -r backend/prisma deploy/backend-deploy/
+          cp backend/package.json deploy/backend-deploy/
+          cp backend/package-lock.json deploy/backend-deploy/
+          cp backend/.env.example deploy/backend-deploy/
+          if [ -f backend/.env.supabase.example ]; then
+            cp backend/.env.supabase.example deploy/backend-deploy/
+          fi
+
+      # Create ZIP files
+      - name: Create Backend ZIP
+        working-directory: ./deploy/backend-deploy
+        run: zip -r ../backend-deploy.zip .
+
+      - name: Create Frontend ZIP
+        working-directory: ./frontend/dist
+        run: zip -r ../../deploy/frontend-dist.zip .
+
+      # Upload Artifacts (สำหรับทุก build)
+      - name: Upload Backend Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-deploy
+          path: deploy/backend-deploy.zip
+          retention-days: 30
+
+      - name: Upload Frontend Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: deploy/frontend-dist.zip
+          retention-days: 30
+
+      # Create GitHub Release (เฉพาะเมื่อ push tag)
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            deploy/backend-deploy.zip
+            deploy/frontend-dist.zip
+          body: |
+            ## 🚀 Shift Work Management System Release
+            
+            ### 📦 Deploy Packages
+            - `backend-deploy.zip` - Backend compiled (Express + TypeScript + Prisma)
+            - `frontend-dist.zip` - Frontend static build (React + Vite)
+            
+            ### 📖 การใช้งาน
+            ดูรายละเอียดการ deploy ที่ [DEPLOY_GUIDE.md](https://github.com/${{ github.repository }}/blob/main/DEPLOY_GUIDE.md)
+            
+            ### 🔐 Checklist ก่อน Deploy
+            - [ ] ตั้งค่า `.env` จาก `.env.example`
+            - [ ] เปลี่ยน JWT secrets
+            - [ ] ตั้งค่า DATABASE_URL
+            - [ ] รัน `npm run db:push` และ `npm run db:seed`
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

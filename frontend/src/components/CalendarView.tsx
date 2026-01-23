@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { Card, Tag, Badge } from 'antd';
-import dayjs, { Dayjs } from 'dayjs';
+import { Tag } from 'antd';
+import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
 import { mockShiftTypes } from '../data/mockData';

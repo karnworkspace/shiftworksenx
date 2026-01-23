@@ -6,9 +6,10 @@ interface RosterStore {
   rosterMatrix: RosterMatrix;
   loading: boolean;
   error: string | null;
+  lastFetchKey: string | null; // Cache key for last fetch
   
   // API methods
-  fetchRoster: (projectId: string, year: number, month: number) => Promise<void>;
+  fetchRoster: (projectId: string, year: number, month: number, force?: boolean) => Promise<void>;
   updateRosterEntry: (data: UpdateRosterEntryData) => Promise<void>;
   batchUpdateEntries: (rosterId: string, updates: Array<{ staffId: string; day: number; shiftCode: string; notes?: string }>) => Promise<void>;
   
@@ -25,16 +26,25 @@ export const useRosterStore = create<RosterStore>((set, get) => ({
   rosterMatrix: {},
   loading: false,
   error: null,
+  lastFetchKey: null,
 
-  fetchRoster: async (projectId: string, year: number, month: number) => {
+  fetchRoster: async (projectId: string, year: number, month: number, force: boolean = false) => {
+    const fetchKey = `${projectId}-${year}-${month}`;
+    const { lastFetchKey, loading } = get();
+    
+    // Skip if already fetching or already loaded (unless forced)
+    if (loading || (!force && lastFetchKey === fetchKey)) {
+      return;
+    }
+    
     set({ loading: true, error: null });
     try {
       const data = await rosterService.getRoster(projectId, year, month);
-      console.log('Fetched roster data:', data);
       set({
         currentRoster: data.roster,
         rosterMatrix: data.rosterMatrix,
         loading: false,
+        lastFetchKey: fetchKey,
       });
     } catch (error: any) {
       console.error('Error fetching roster:', error);
@@ -46,39 +56,41 @@ export const useRosterStore = create<RosterStore>((set, get) => ({
   },
 
   updateRosterEntry: async (data: UpdateRosterEntryData) => {
-    set({ loading: true, error: null });
-    try {
-      await rosterService.updateEntry(data);
-      // Update local state
-      const { rosterMatrix } = get();
-      const updatedMatrix = { ...rosterMatrix };
-      
-      // Create entry if staff doesn't exist in matrix
-      if (!updatedMatrix[data.staffId]) {
-        updatedMatrix[data.staffId] = {
-          staff: { id: data.staffId, name: '', position: '' },
-          days: {},
-        };
-      }
-      
+    const { rosterMatrix } = get();
+    const oldMatrix = { ...rosterMatrix };
+    
+    // Optimistic update - update UI immediately
+    const updatedMatrix = { ...rosterMatrix };
+    
+    // Create entry if staff doesn't exist in matrix
+    if (!updatedMatrix[data.staffId]) {
       updatedMatrix[data.staffId] = {
-        ...updatedMatrix[data.staffId],
-        days: {
-          ...updatedMatrix[data.staffId].days,
-          [data.day]: {
-            shiftCode: data.shiftCode,
-            notes: data.notes,
-          },
-        },
+        staff: { id: data.staffId, name: '', position: '' },
+        days: {},
       };
-      
-      set({ rosterMatrix: updatedMatrix, loading: false });
+    }
+    
+    updatedMatrix[data.staffId] = {
+      ...updatedMatrix[data.staffId],
+      days: {
+        ...updatedMatrix[data.staffId].days,
+        [data.day]: {
+          shiftCode: data.shiftCode,
+          notes: data.notes,
+        },
+      },
+    };
+    
+    // Update UI immediately (optimistic)
+    set({ rosterMatrix: updatedMatrix });
+    
+    try {
+      // Make API call in background
+      await rosterService.updateEntry(data);
     } catch (error: any) {
-      set({
-        error: error.response?.data?.error || 'Failed to update roster entry',
-        loading: false,
-      });
-      throw error; // Re-throw to let component handle the error
+      // Rollback on error
+      set({ rosterMatrix: oldMatrix });
+      throw error;
     }
   },
 
@@ -86,10 +98,10 @@ export const useRosterStore = create<RosterStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await rosterService.batchUpdate({ rosterId, updates });
-      // Refetch roster to get updated data
+      // Refetch roster to get updated data (force refresh)
       const { currentRoster } = get();
       if (currentRoster) {
-        await get().fetchRoster(currentRoster.projectId, currentRoster.year, currentRoster.month);
+        await get().fetchRoster(currentRoster.projectId, currentRoster.year, currentRoster.month, true);
       }
     } catch (error: any) {
       set({
@@ -104,7 +116,7 @@ export const useRosterStore = create<RosterStore>((set, get) => ({
     return rosterMatrix[staffId]?.days[day]?.shiftCode || 'OFF';
   },
 
-  clearRoster: () => set({ currentRoster: null, rosterMatrix: {}, error: null }),
+  clearRoster: () => set({ currentRoster: null, rosterMatrix: {}, error: null, lastFetchKey: null }),
   
   clearError: () => set({ error: null }),
 }));

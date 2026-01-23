@@ -164,6 +164,8 @@ npm run lint         # รัน ESLint
 ## 📚 เอกสารเพิ่มเติม
 
 - [SETUP_GUIDE.md](SETUP_GUIDE.md) - คู่มือการติดตั้งอย่างละเอียด
+- [DEPLOY_GUIDE.md](DEPLOY_GUIDE.md) - ขั้นตอน Deploy (Frontend + Backend) และไฟล์ zip สำหรับอัปโหลด
+- [GITHUB_SETUP_GUIDE.md](GITHUB_SETUP_GUIDE.md) - การตั้งค่า GitHub และ CI/CD ด้วย GitHub Actions
 - [Prisma Schema](backend/prisma/schema.prisma) - Database schema
 
 ## 🐛 Known Issues

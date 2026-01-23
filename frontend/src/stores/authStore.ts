@@ -6,6 +6,7 @@ interface User {
   email: string;
   name: string;
   role: string;
+  permissions: string[];
 }
 
 interface AuthStore {
@@ -15,11 +16,12 @@ interface AuthStore {
   setUser: (user: User | null) => void;
   setAccessToken: (token: string | null) => void;
   logout: () => void;
+  hasPermission: (permission: string) => boolean;
 }
 
 export const useAuthStore = create<AuthStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       accessToken: null,
       isAuthenticated: false,
@@ -36,14 +38,22 @@ export const useAuthStore = create<AuthStore>()(
         localStorage.removeItem('accessToken');
         set({ user: null, accessToken: null, isAuthenticated: false });
       },
+      hasPermission: (permission: string) => {
+        const user = get().user;
+        if (!user) return false;
+        // SUPER_ADMIN มีสิทธิ์ทุกเมนู
+        if (user.role === 'SUPER_ADMIN') return true;
+        return user.permissions?.includes(permission) ?? false;
+      },
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ 
-        user: state.user, 
+      partialize: (state) => ({
+        user: state.user,
         accessToken: state.accessToken,
-        isAuthenticated: state.isAuthenticated 
+        isAuthenticated: state.isAuthenticated
       }),
     }
   )
 );
+
