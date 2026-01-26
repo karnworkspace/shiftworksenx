@@ -2,6 +2,21 @@
 
 เอกสารนี้อธิบายการนำระบบไปใช้งานจริง (Production) และการสร้างไฟล์ `.zip` สำหรับอัปโหลด deploy
 
+---
+
+## ⚡ Quick Start (สำหรับ Deploy ครั้งแรก)
+
+### ขั้นตอนโดยย่อ:
+
+1. **ดาวน์โหลด** zip files จาก GitHub Releases หรือ Actions
+2. **Backend**: แตก zip → ตั้ง `.env` → `npm ci` → `npm run db:push` → `npm start`
+3. **Frontend**: แตก zip → วาง static files บน Nginx/Server
+4. **Nginx**: ตั้ง reverse proxy `/api` → backend + SPA rewrite
+
+ตัวอย่าง Nginx config อยู่ที่ **Section 3**
+
+---
+
 ## ✅ สถานะปัจจุบัน (ในโปรเจคนี้)
 
 ตอนนี้โปรเจคมี output สำหรับ deploy แล้วที่โฟลเดอร์ `deploy/`:
@@ -50,8 +65,10 @@
 
 ### วิธีสร้าง Release
 
+**ขั้นตอน 1: บน local machine**
+
 ```bash
-# ตัวอย่าง: สร้าง release v1.0.2
+# เปลี่ยนเวอร์ชันตามต้องการ (เช่น v1.0.2)
 git add -A
 git commit -m "chore: prepare release v1.0.2"
 git tag v1.0.2
@@ -59,7 +76,12 @@ git push origin main
 git push origin v1.0.2
 ```
 
-GitHub Actions จะ build และสร้าง Release ให้อัตโนมัติภายใน 3-5 นาที
+**ขั้นตอน 2: GitHub Actions จะทำให้อัตโนมัติ**
+- ดูความคืบหน้าที่ Actions tab
+- หลังจากเสร็จ (3-5 นาที) → ไปที่ **Releases** page
+- ดาวน์โหลด `backend-deploy.zip` และ `frontend-dist.zip` เลย
+
+> **💡 ไม่ต้องสร้าง zip ด้วยมือ** — GitHub Actions จะทำให้อัตโนมัติเมื่อ push tag
 
 ### ดาวน์โหลดไฟล์ Deploy
 
@@ -133,6 +155,18 @@ npm start
 
 ## 2) Deploy Frontend (จาก zip)
 
+### 2.0 Build Frontend (ถ้าต้องเปลี่ยน API URL)
+
+หากต้องการให้ frontend เรียก API จากโดเมนอื่น (ไม่ใช่ `/api`) ให้ build ด้วย `VITE_API_URL`:
+
+```bash
+# ตัวอย่าง: build ให้เรียก API จาก https://api.example.com
+cd frontend
+VITE_API_URL=https://api.example.com/api npm run build
+```
+
+ถ้าไม่ตั้ง `VITE_API_URL` (ค่าเริ่มต้น) frontend จะเรียก `/api` (ใช้ domain เดียว + reverse proxy)
+
 ### 2.1 แตกไฟล์
 
 - แตกไฟล์ `deploy/frontend-dist.zip`
@@ -156,6 +190,42 @@ npm start
 
 ## 3) Reverse Proxy ตัวอย่าง (Nginx) — แบบ A
 
+ตัวอย่าง Nginx config ที่จะ serve static frontend และ proxy `/api` ไป backend:
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # Frontend static files
+    location / {
+        root /var/www/shift-work/frontend;
+        try_files $uri $uri/ /index.html;  # SPA rewrite
+    }
+
+    # API proxy ไป Backend
+    location /api/ {
+        proxy_pass http://127.0.0.1:5000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+**วิธีใช้:**
+1. แตก `frontend-dist.zip` ไปยัง `/var/www/shift-work/frontend`
+2. แก้ไข `your-domain.com` เป็นโดเมนจริง
+3. Backend รัน port 5000 (`PORT=5000` ใน `.env`)
+4. `sudo systemctl reload nginx`
+
+## 4) Reverse Proxy ตัวอย่าง (Nginx) — แบบ A (เดิม)
+
 ตัวอย่าง config (สรุปแนวคิด):
 
 - Serve static frontend
@@ -168,7 +238,7 @@ npm start
 
 ---
 
-## 4) สร้างไฟล์ zip ใหม่ (บนเครื่อง Dev)
+## 5) สร้างไฟล์ zip ใหม่ (บนเครื่อง Dev)
 
 ถ้ามีการแก้โค้ด แล้วต้องการสร้าง zip ใหม่:
 
@@ -194,8 +264,29 @@ npm run build
 
 ## 5) Checklist ก่อนขึ้นระบบจริง
 
-- ตั้ง `NODE_ENV=production`
-- เปลี่ยน `JWT_*_SECRET` ให้เป็นค่า random ยาวๆ
-- ตั้ง `DATABASE_URL` เป็น production database (และเปิด SSL ถ้าจำเป็น)
-- ตั้งค่า backup/restore database
-- ตั้งค่า process manager (เช่น pm2 / NSSM / systemd) ให้ backend auto-restart
+- ✅ ตั้ง `NODE_ENV=production`
+- ✅ เปลี่ยน `JWT_*_SECRET` ให้เป็นค่า random ยาวๆ (อย่างน้อย 32 ตัวอักษร)
+- ✅ ตั้ง `DATABASE_URL` เป็น production database (และเปิด SSL ถ้าจำเป็น)
+- ✅ ตั้งค่า backup/restore database
+- ✅ ตั้งค่า process manager (เช่น pm2 / NSSM / systemd) ให้ backend auto-restart
+- ✅ ตั้ง `FRONTEND_URL` เป็น domain จริง (เพื่อ CORS)
+- ✅ ทำ HTTPS (ใช้ Let's Encrypt สำหรับ Nginx)
+- ✅ ตรวจสอบ backend health: `GET /health` ตอบ `{"status":"OK"}`
+
+---
+
+## 📞 Support & Troubleshooting
+
+### Backend ไม่ขึ้น
+- ตรวจ logs: `npm start` แล้อดูข้อความ error
+- ตรวจ `DATABASE_URL` — ต้อง PostgreSQL หรือ Supabase
+- ตรวจ `JWT_*_SECRET` — ต้องไม่ว่างเปล่า
+
+### Frontend หน้าขาว
+- ตรวจ Network tab — API call ไปไหน?
+- ตรวจ Nginx logs: `/var/log/nginx/error.log`
+- ตรวจ SPA rewrite — ใช้ `try_files` ในวิธีที่ถูกต้อง
+
+### Login ไม่ได้
+- ตรวจว่าได้รัน `npm run db:seed` แล้วไหม
+- ลองเข้าด้วย admin (default: username `admin`, password ตามที่ seed ตั้งไว้)
