@@ -138,7 +138,35 @@ export const createProject = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    return res.status(201).json({ success: true, project });
+    // Refetch with relations so frontend state includes cost sharing immediately
+    const projectWithRelations = await prisma.project.findUnique({
+      where: { id: project.id },
+      include: {
+        costSharingFrom: {
+          include: {
+            destinationProject: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      project: projectWithRelations
+        ? {
+            ...projectWithRelations,
+            costSharingFrom: projectWithRelations.costSharingFrom.map((cs) => ({
+              ...cs,
+              percentage: decimalToNumber(cs.percentage),
+            })),
+          }
+        : project,
+    });
   } catch (error) {
     console.error('Create project error:', error);
     return res.status(500).json({ error: 'Failed to create project' });

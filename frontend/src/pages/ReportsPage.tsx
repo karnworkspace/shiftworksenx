@@ -27,7 +27,7 @@ import { useRosterStore } from '../stores/rosterStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useStaffStore } from '../stores/staffStore';
 import { useSettingsStore } from '../stores/settingsStore';
-import { rosterService } from '../services/roster.service';
+import apiClient from '../services/api';
 import { generateMonthlyReport } from '../utils/pdfGenerator';
 
 dayjs.extend(buddhistEra);
@@ -95,45 +95,6 @@ const ReportsPage: React.FC = () => {
   const currentProject = getProject(selectedProjectId);
   const costSharingFrom = currentProject?.costSharingFrom ?? [];
 
-  const calculateTotalDeductionFromRosterMatrix = (
-    matrix: any,
-    daysInMonth: number
-  ) => {
-    let total = 0;
-
-    if (!matrix || !shiftTypes.length) return 0;
-
-    // Get shift codes dynamically
-    const absentShift = shiftTypes.find(s => s.code === 'ขาด' || s.code === 'ข');
-    const absentCode = absentShift?.code || 'ขาด';
-    const sickShift = shiftTypes.find(s => s.code === 'ป่วย' || s.code === 'ป');
-    const sickCode = sickShift?.code || 'ป';
-    const lateShift = shiftTypes.find(s => s.code === 'ส' || s.code === 'สาย');
-    const lateCode = lateShift?.code || 'ส';
-
-    for (const staffId of Object.keys(matrix)) {
-      let totalAbsent = 0;
-      let totalLate = 0;
-      let totalSickLeave = 0;
-
-      for (let day = 1; day <= daysInMonth; day++) {
-        const shiftCode = matrix?.[staffId]?.days?.[day]?.shiftCode || 'OFF';
-        if (shiftCode === absentCode) totalAbsent++;
-        else if (shiftCode === sickCode) totalSickLeave++;
-        else if (shiftCode === lateCode) totalLate++;
-      }
-
-      const absentDeduction = totalAbsent * deductionConfig.absentDeductionPerDay;
-      const lateDeduction = totalLate * deductionConfig.lateDeductionPerTime;
-      const excessSickDays = Math.max(0, totalSickLeave - deductionConfig.maxSickLeaveDaysPerMonth);
-      const sickLeaveDeduction = excessSickDays * deductionConfig.sickLeaveDeductionPerDay;
-
-      total += absentDeduction + lateDeduction + sickLeaveDeduction;
-    }
-
-    return total;
-  };
-
   // Compute received deductions from other projects based on costSharingFrom settings (source -> this project)
   useEffect(() => {
     let cancelled = false;
@@ -145,7 +106,6 @@ const ReportsPage: React.FC = () => {
 
       const year = selectedDate.year();
       const month = selectedDate.month() + 1;
-      const daysInMonth = selectedDate.daysInMonth();
 
       try {
         const sourceProjects = projects
@@ -173,8 +133,10 @@ const ReportsPage: React.FC = () => {
 
         const results = await Promise.all(
           sourceProjects.map(async (sp) => {
-            const resp = await rosterService.getRoster(sp.projectId, year, month);
-            const projectTotalDeduction = calculateTotalDeductionFromRosterMatrix(resp.rosterMatrix, daysInMonth);
+            const resp = await apiClient.get('/reports/deduction', {
+              params: { projectId: sp.projectId, year, month },
+            });
+            const projectTotalDeduction = resp.data?.report?.totals?.totalDeduction || 0;
             const sharedAmount = (projectTotalDeduction * sp.percentage) / 100;
             return {
               ...sp,
@@ -212,7 +174,7 @@ const ReportsPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [projects, selectedProjectId, selectedDate, deductionConfig]);
+  }, [projects, selectedProjectId, selectedDate]);
 
   // Calculate deductions received FROM other projects (other projects share TO this project)
   // Calculate attendance data dynamically from roster entries
@@ -263,7 +225,7 @@ const ReportsPage: React.FC = () => {
       }
 
       // Calculate deduction using deduction config
-      const absentDeduction = totalAbsent * deductionConfig.absentDeductionPerDay;
+      const absentDeduction = totalAbsent * staff.wagePerDay;
       const excessSickDays = Math.max(0, totalSickLeave - deductionConfig.maxSickLeaveDaysPerMonth);
       const sickLeaveDeduction = excessSickDays * deductionConfig.sickLeaveDeductionPerDay;
       const totalDeductionRaw = absentDeduction + sickLeaveDeduction;
@@ -497,7 +459,7 @@ const ReportsPage: React.FC = () => {
                           />
                         </Card>
                       </Col>
-                      <Col span={4}>
+                      <Col span={6}>
                         <Card>
                           <Statistic
                             title={
@@ -533,7 +495,7 @@ const ReportsPage: React.FC = () => {
                           />
                         </Card>
                       </Col>
-                      <Col span={4}>
+                      <Col span={6}>
                         <Card style={{ background: '#fff2f0', borderColor: '#ffccc7' }}>
                           <Statistic
                             title={

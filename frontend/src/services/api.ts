@@ -26,10 +26,13 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
+    const requestUrl = (originalRequest.url || '').toString();
+    const isAuthRequest =
+      requestUrl.includes('/auth/login') || requestUrl.includes('/auth/refresh');
 
     // If 401 and not already retried
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
 
       try {
