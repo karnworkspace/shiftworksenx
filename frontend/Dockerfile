@@ -11,10 +11,17 @@ RUN npm run build
 # --- Nginx stage ---
 FROM nginx:alpine
 
+# Simple SPA config
+RUN echo 'server { \
+    listen 80; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Nginx config will be mounted via docker-compose
-RUN rm /etc/nginx/conf.d/default.conf
-
-EXPOSE 80 443
+EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
