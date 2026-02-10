@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   Table,
@@ -18,44 +18,55 @@ import {
   EditOutlined,
   StopOutlined,
   CheckCircleOutlined,
+  UpOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import { useStaffStore } from '../stores/staffStore';
 import { useProjectStore } from '../stores/projectStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import { useAuthStore } from '../stores/authStore';
 
 interface Staff {
   id: string;
   code: string;
   name: string;
   position: string;
+  positionId?: string;
   phone?: string;
   wagePerDay: number;
+  displayOrder?: number | null;
   availability: string;
   isActive: boolean;
   projectId: string;
+  defaultShift?: string;
+  weeklyOffDay?: number | null;
 }
 
 const StaffPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [defaultShiftUpdatingId, setDefaultShiftUpdatingId] = useState<string | null>(null);
+  const [weeklyOffUpdatingId, setWeeklyOffUpdatingId] = useState<string | null>(null);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
+  const [selectedPositionId, setSelectedPositionId] = useState<string | undefined>(undefined);
+  const [selectedDefaultShift, setSelectedDefaultShift] = useState<string | undefined>(undefined);
 
   // Use global stores
-  const { projects, fetchProjects } = useProjectStore();
-  const { addStaff, updateStaff, setStaffInactive, getStaffByProject, fetchStaff } = useStaffStore();
+  const { projects, fetchProjects, selectedProjectId, setSelectedProjectId, getProject } = useProjectStore();
+  const { addStaff, updateStaff, setStaffInactive, getStaffByProject, fetchStaff, applyDefaultShift, applyWeeklyOffDay, reorderStaff } = useStaffStore();
+  const { positions, fetchPositions, shiftTypes, fetchShiftTypes } = useSettingsStore();
+  const { user } = useAuthStore();
 
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [form] = Form.useForm();
 
   // Fetch projects on mount
   useEffect(() => {
     fetchProjects();
-  }, []);
-
-  // Set default project when projects are loaded
-  useEffect(() => {
-    if (projects.length > 0 && !selectedProjectId) {
-      setSelectedProjectId(projects[0].id);
+    fetchPositions();
+    if (shiftTypes.length === 0) {
+      fetchShiftTypes();
     }
-  }, [projects]);
+  }, [fetchProjects, fetchPositions, fetchShiftTypes, shiftTypes.length]);
 
   // Fetch staff when project changes
   useEffect(() => {
@@ -64,25 +75,66 @@ const StaffPage: React.FC = () => {
     }
   }, [selectedProjectId]);
 
-  // Filter staff by selected project
-  const filteredStaff = getStaffByProject(selectedProjectId);
+  // Ordered staff list comes from store (already sorted)
+  const orderedStaffAll = getStaffByProject(selectedProjectId);
+  const currentProject = getProject(selectedProjectId);
+  const subProjects = Array.isArray(currentProject?.subProjects) ? currentProject?.subProjects : [];
+
+  const filterPositionName = useMemo(() => {
+    if (!selectedPositionId) return undefined;
+    return positions.find((p) => p.id === selectedPositionId)?.name;
+  }, [positions, selectedPositionId]);
+
+  const filtersActive = !!selectedPositionId || !!selectedDefaultShift;
+
+  // Filter staff by selected project + filters
+  const filteredStaff = useMemo(() => {
+    return orderedStaffAll.filter((staff) => {
+      if (selectedPositionId) {
+        const matchById = staff.positionId && staff.positionId === selectedPositionId;
+        const matchByName = filterPositionName && staff.position === filterPositionName;
+        if (!matchById && !matchByName) return false;
+      }
+      if (selectedDefaultShift) {
+        if ((staff.defaultShift || 'OFF') !== selectedDefaultShift) return false;
+      }
+      return true;
+    });
+  }, [orderedStaffAll, selectedPositionId, filterPositionName, selectedDefaultShift]);
+  const canEditDefaults = user?.role === 'SUPER_ADMIN';
+  const weekOptions = [
+    { value: null, label: 'ไม่กำหนด' },
+    { value: 0, label: 'อาทิตย์' },
+    { value: 1, label: 'จันทร์' },
+    { value: 2, label: 'อังคาร' },
+    { value: 3, label: 'พุธ' },
+    { value: 4, label: 'พฤหัสบดี' },
+    { value: 5, label: 'ศุกร์' },
+    { value: 6, label: 'เสาร์' },
+  ];
+  const getShiftLabel = (shift: any) => {
+    if (shift?.isWorkShift && shift?.startTime && shift?.endTime) {
+      return `${shift.name} (${shift.code}) ${shift.startTime}-${shift.endTime}`;
+    }
+    return `${shift?.name ?? ''} (${shift?.code ?? ''})`.trim();
+  };
 
   const handleCreate = () => {
     setEditingStaff(null);
     form.resetFields();
     form.setFieldsValue({
       isActive: true,
-      wagePerDay: 500,
     });
     setIsModalOpen(true);
   };
 
   const handleEdit = (staff: Staff) => {
     setEditingStaff(staff);
+    const matchedPosition = positions.find((p) => p.name === staff.position);
     form.setFieldsValue({
       code: staff.code,
       name: staff.name,
-      position: staff.position,
+      positionId: staff.positionId || matchedPosition?.id,
       phone: staff.phone,
       wagePerDay: staff.wagePerDay,
       isActive: staff.isActive,
@@ -100,10 +152,11 @@ const StaffPage: React.FC = () => {
       if (editingStaff) {
         console.log('Updating staff:', editingStaff.id, values);
         const result = await updateStaff(editingStaff.id, {
+          code: values.code,
           name: values.name,
-          position: values.position,
+          positionId: values.positionId,
           phone: values.phone,
-          wagePerDay: values.wagePerDay || 500,
+          wagePerDay: values.wagePerDay,
           isActive: values.isActive,
           remark: values.remark,
         });
@@ -117,10 +170,11 @@ const StaffPage: React.FC = () => {
       } else {
         console.log('Creating new staff');
         const result = await addStaff({
+          code: values.code,
           name: values.name,
-          position: values.position,
+          positionId: values.positionId,
           phone: values.phone,
-          wagePerDay: values.wagePerDay || 500,
+          wagePerDay: values.wagePerDay,
           staffType: 'REGULAR',
           defaultShift: 'OFF',
           projectId: selectedProjectId,
@@ -154,7 +208,92 @@ const StaffPage: React.FC = () => {
     }
   };
 
+  const handleDefaultShiftChange = (staff: Staff, nextShift: string) => {
+    const currentShift = staff.defaultShift || 'OFF';
+    if (nextShift === currentShift) return;
+    Modal.confirm({
+      title: 'ยืนยันการตั้งค่ากะเริ่มต้น',
+      content:
+        'การตั้งค่านี้จะมีผลกับเดือนปัจจุบันและเดือนถัดไปเท่านั้น และจะไม่เปลี่ยนวันที่แก้ไขแล้วในเดือนที่ผ่านมา',
+      onOk: async () => {
+        setDefaultShiftUpdatingId(staff.id);
+        const result = await applyDefaultShift(staff.id, nextShift);
+        if (result) {
+          message.success('อัปเดตกะเริ่มต้นเรียบร้อย');
+        } else {
+          message.error('อัปเดตกะเริ่มต้นไม่สำเร็จ');
+        }
+        setDefaultShiftUpdatingId(null);
+      },
+    });
+  };
+
+  const handleWeeklyOffDayChange = (staff: Staff, nextOffDay: number | null) => {
+    const currentOff = staff.weeklyOffDay ?? null;
+    if (nextOffDay === currentOff) return;
+    Modal.confirm({
+      title: 'ยืนยันการตั้งค่าวันหยุดประจำสัปดาห์',
+      content:
+        'การตั้งค่านี้จะมีผลกับเดือนปัจจุบันและเดือนถัดไปเท่านั้น และจะไม่เปลี่ยนวันที่แก้ไขแล้วในเดือนที่ผ่านมา',
+      onOk: async () => {
+        setWeeklyOffUpdatingId(staff.id);
+        const result = await applyWeeklyOffDay(staff.id, nextOffDay);
+        if (result) {
+          message.success('อัปเดตวันหยุดประจำสัปดาห์เรียบร้อย');
+        } else {
+          message.error('อัปเดตวันหยุดประจำสัปดาห์ไม่สำเร็จ');
+        }
+        setWeeklyOffUpdatingId(null);
+      },
+    });
+  };
+
+  const handleMove = async (staffId: string, direction: 'up' | 'down') => {
+    if (!selectedProjectId) return;
+    if (filtersActive) {
+      message.warning('กรุณาปิดตัวกรองก่อนจัดลำดับ');
+      return;
+    }
+
+    const orderedIds = orderedStaffAll.map((s) => s.id);
+    const currentIndex = orderedIds.indexOf(staffId);
+    if (currentIndex === -1) return;
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= orderedIds.length) return;
+
+    const newOrder = [...orderedIds];
+    [newOrder[currentIndex], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[currentIndex]];
+
+    setReorderingId(staffId);
+    const result = await reorderStaff(selectedProjectId, newOrder);
+    if (!result) {
+      message.error('จัดลำดับไม่สำเร็จ');
+    }
+    setReorderingId(null);
+  };
+
   const columns = [
+    {
+      title: 'ลำดับ',
+      key: 'order',
+      width: 80,
+      render: (_: any, record: Staff) => (
+        <Space size={4}>
+          <Button
+            size="small"
+            icon={<UpOutlined />}
+            onClick={() => handleMove(record.id, 'up')}
+            disabled={filtersActive || reorderingId !== null}
+          />
+          <Button
+            size="small"
+            icon={<DownOutlined />}
+            onClick={() => handleMove(record.id, 'down')}
+            disabled={filtersActive || reorderingId !== null}
+          />
+        </Space>
+      ),
+    },
     {
       title: 'รหัส',
       dataIndex: 'code',
@@ -194,6 +333,46 @@ const StaffPage: React.FC = () => {
           </Tag>
         );
       },
+    },
+    {
+      title: 'กะเริ่มต้น',
+      key: 'defaultShift',
+      render: (_: any, record: Staff) => (
+        <Select
+          size="small"
+          style={{ width: 140 }}
+          value={record.defaultShift || 'OFF'}
+          loading={defaultShiftUpdatingId === record.id}
+          disabled={!canEditDefaults || defaultShiftUpdatingId === record.id}
+          onChange={(value) => handleDefaultShiftChange(record, value)}
+        >
+          {shiftTypes.map((shift) => (
+            <Select.Option key={shift.code} value={shift.code}>
+              {getShiftLabel(shift)}
+            </Select.Option>
+          ))}
+        </Select>
+      ),
+    },
+    {
+      title: 'วันหยุดประจำสัปดาห์',
+      key: 'weeklyOffDay',
+      render: (_: any, record: Staff) => (
+        <Select
+          size="small"
+          style={{ width: 140 }}
+          value={record.weeklyOffDay ?? null}
+          loading={weeklyOffUpdatingId === record.id}
+          disabled={!canEditDefaults || weeklyOffUpdatingId === record.id}
+          onChange={(value) => handleWeeklyOffDayChange(record, value ?? null)}
+        >
+          {weekOptions.map((opt) => (
+            <Select.Option key={String(opt.value)} value={opt.value as any}>
+              {opt.label}
+            </Select.Option>
+          ))}
+        </Select>
+      ),
     },
     {
       title: 'จัดการ',
@@ -242,12 +421,50 @@ const StaffPage: React.FC = () => {
                 </Select.Option>
               ))}
             </Select>
+            <Select
+              placeholder="ตำแหน่ง"
+              style={{ width: 200 }}
+              allowClear
+              value={selectedPositionId}
+              onChange={(value) => setSelectedPositionId(value)}
+            >
+              {positions.map((p) => (
+                <Select.Option key={p.id} value={p.id}>
+                  {p.name}
+                </Select.Option>
+              ))}
+            </Select>
+            <Select
+              placeholder="กะเริ่มต้น"
+              style={{ width: 200 }}
+              allowClear
+              value={selectedDefaultShift}
+              onChange={(value) => setSelectedDefaultShift(value)}
+            >
+              {shiftTypes.map((shift) => (
+                <Select.Option key={shift.code} value={shift.code}>
+                  {shift.name} ({shift.code})
+                </Select.Option>
+              ))}
+            </Select>
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
               เพิ่มพนักงาน
             </Button>
           </Space>
         }
       >
+        {subProjects.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <Space wrap size={8}>
+              <Tag color="blue">โครงการย่อย</Tag>
+              {subProjects.map((sp: any, idx: number) => (
+                <Tag key={`${sp?.name ?? 'sub'}-${idx}`} color="geekblue">
+                  {sp?.name ?? '-'} {Number.isFinite(Number(sp?.percentage)) ? `(${Number(sp?.percentage)}%)` : ''}
+                </Tag>
+              ))}
+            </Space>
+          </div>
+        )}
         <Table
           columns={columns}
           dataSource={filteredStaff}
@@ -282,10 +499,24 @@ const StaffPage: React.FC = () => {
 
           <Form.Item
             label="ตำแหน่ง"
-            name="position"
-            rules={[{ required: true, message: 'กรุณากรอกตำแหน่ง' }]}
+            name="positionId"
+            rules={[{ required: true, message: 'กรุณาเลือกตำแหน่ง' }]}
           >
-            <Input placeholder="เช่น เจ้าหน้าที่รักษาความปลอดภัย" />
+            <Select
+              placeholder="เลือกตำแหน่ง"
+              onChange={(value) => {
+                const selected = positions.find((p) => p.id === value);
+                if (selected) {
+                  form.setFieldsValue({ wagePerDay: selected.defaultWage });
+                }
+              }}
+            >
+              {positions.map((p) => (
+                <Select.Option key={p.id} value={p.id}>
+                  {p.name}
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
 
           <Form.Item label="เบอร์โทร" name="phone">

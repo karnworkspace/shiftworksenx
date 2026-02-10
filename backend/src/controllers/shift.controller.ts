@@ -40,9 +40,9 @@ export const getShiftById = async (req: Request, res: Response) => {
 // POST /api/shifts - สร้างกะใหม่
 export const createShift = async (req: Request, res: Response) => {
     try {
-        const { code, name, startTime, endTime, color, isWorkShift } = req.body;
+        const { code, name, startTime, endTime, color, textColor, isWorkShift } = req.body;
 
-        console.log('Creating shift with data:', { code, name, startTime, endTime, color, isWorkShift });
+        console.log('Creating shift with data:', { code, name, startTime, endTime, color, textColor, isWorkShift });
 
         // ตรวจสอบว่า code ซ้ำหรือไม่
         const existingShift = await prisma.shiftType.findUnique({
@@ -53,6 +53,10 @@ export const createShift = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Shift code already exists' });
         }
 
+        const resolvedIsWorkShift = isWorkShift ?? true;
+        const resolvedTextColor =
+            textColor || (resolvedIsWorkShift ? '#fff' : '#000');
+
         const shift = await prisma.shiftType.create({
             data: {
                 code,
@@ -60,7 +64,7 @@ export const createShift = async (req: Request, res: Response) => {
                 startTime: startTime || null,
                 endTime: endTime || null,
                 color: color || '#1890ff',
-                isWorkShift: isWorkShift ?? true,
+                isWorkShift: resolvedIsWorkShift,
             },
         });
 
@@ -76,9 +80,9 @@ export const createShift = async (req: Request, res: Response) => {
 export const updateShift = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { code, name, startTime, endTime, color, isWorkShift } = req.body;
+        const { code, name, startTime, endTime, color, textColor, isWorkShift } = req.body;
 
-        console.log('Updating shift with id:', id, 'and data:', { code, name, startTime, endTime, color, isWorkShift });
+        console.log('Updating shift with id:', id, 'and data:', { code, name, startTime, endTime, color, textColor, isWorkShift });
 
         // ตรวจสอบว่ากะมีอยู่หรือไม่
         const existingShift = await prisma.shiftType.findUnique({

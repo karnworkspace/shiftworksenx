@@ -4,6 +4,16 @@ import { UserRole } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import bcrypt from 'bcryptjs';
 
+const userSelect = {
+  id: true,
+  email: true,
+  name: true,
+  role: true,
+  permissions: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
 /**
  * Get all users
  * Only SUPER_ADMIN and AREA_MANAGER can access
@@ -11,15 +21,7 @@ import bcrypt from 'bcryptjs';
 export const getAllUsers = async (req: AuthRequest, res: Response) => {
   try {
     const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        permissions: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: userSelect,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -39,15 +41,7 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        permissions: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: userSelect,
     });
 
     if (!user) {
@@ -66,7 +60,11 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
  */
 export const createUser = async (req: AuthRequest, res: Response) => {
   try {
-    const { email, password, name, role, permissions } = req.body;
+    const { email, password, name, role, permissions, projectIds } = req.body;
+    const nextRole: UserRole = role || UserRole.SITE_MANAGER;
+    const normalizedProjectIds = Array.isArray(projectIds)
+      ? Array.from(new Set(projectIds.filter((id: unknown) => typeof id === 'string')))
+      : [];
 
     // Validation
     if (!email || !password || !name) {
@@ -89,6 +87,20 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' });
     }
 
+    if (nextRole !== UserRole.SUPER_ADMIN && normalizedProjectIds.length === 0) {
+      return res.status(400).json({ error: 'กรุณาเลือกอย่างน้อย 1 โครงการ' });
+    }
+
+    if (normalizedProjectIds.length > 0) {
+      const validProjects = await prisma.project.findMany({
+        where: { id: { in: normalizedProjectIds } },
+        select: { id: true },
+      });
+      if (validProjects.length !== normalizedProjectIds.length) {
+        return res.status(400).json({ error: 'พบโครงการที่ไม่ถูกต้อง' });
+      }
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -98,18 +110,10 @@ export const createUser = async (req: AuthRequest, res: Response) => {
         email,
         password: hashedPassword,
         name,
-        role: role || UserRole.SITE_MANAGER,
+        role: nextRole,
         permissions: permissions || ['reports', 'roster', 'staff', 'projects', 'users', 'settings'],
       },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        permissions: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: userSelect,
     });
 
     return res.status(201).json({ success: true, user });
@@ -125,11 +129,12 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { email, name, role, permissions } = req.body;
+    const { email, name, role, permissions, projectIds } = req.body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
       where: { id },
+      select: { id: true, email: true, role: true },
     });
 
     if (!existingUser) {
@@ -147,7 +152,25 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Update user
+    const nextRole: UserRole = role || existingUser.role;
+    const normalizedProjectIds = Array.isArray(projectIds)
+      ? Array.from(new Set(projectIds.filter((pid: unknown) => typeof pid === 'string')))
+      : undefined;
+
+    if (nextRole !== UserRole.SUPER_ADMIN && normalizedProjectIds !== undefined && normalizedProjectIds.length === 0) {
+      return res.status(400).json({ error: 'กรุณาเลือกอย่างน้อย 1 โครงการ' });
+    }
+
+    if (nextRole !== UserRole.SUPER_ADMIN && normalizedProjectIds && normalizedProjectIds.length > 0) {
+      const validProjects = await prisma.project.findMany({
+        where: { id: { in: normalizedProjectIds } },
+        select: { id: true },
+      });
+      if (validProjects.length !== normalizedProjectIds.length) {
+        return res.status(400).json({ error: 'พบโครงการที่ไม่ถูกต้อง' });
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id },
       data: {
@@ -156,15 +179,7 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
         ...(role !== undefined && { role }),
         ...(permissions !== undefined && { permissions }),
       },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        permissions: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: userSelect,
     });
 
     return res.json({ success: true, user });

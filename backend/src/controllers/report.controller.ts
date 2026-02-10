@@ -1,8 +1,8 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types/auth.types';
-import { calculateCostSharing, CostSharingCalculation } from '../lib/cost-sharing';
 import { prisma } from '../lib/prisma';
 import { decimalToNumber } from '../utils/decimal';
+import { ensureProjectAccess, getAccessibleProjectIds, isSuperAdmin } from '../utils/projectAccess';
 
 /**
  * Calculate monthly attendance and deductions for a staff
@@ -109,6 +109,10 @@ export const getMonthlyDeductionReport = async (req: AuthRequest, res: Response)
       return res.status(400).json({ error: 'Invalid year or month' });
     }
 
+    if (!(await ensureProjectAccess(req, projectId as string))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
+    }
+
     // Get roster
     const roster = await prisma.roster.findUnique({
       where: {
@@ -182,116 +186,6 @@ export const getMonthlyDeductionReport = async (req: AuthRequest, res: Response)
 };
 
 /**
- * Get cost sharing report (consolidated across all projects)
- */
-export const getCostSharingReport = async (req: AuthRequest, res: Response) => {
-  try {
-    const { year, month } = req.query;
-
-    if (!year || !month) {
-      return res.status(400).json({ error: 'Year and month are required' });
-    }
-
-    const yearNum = parseInt(year as string);
-    const monthNum = parseInt(month as string);
-
-    if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
-      return res.status(400).json({ error: 'Invalid year or month' });
-    }
-
-    // Get all projects
-    const projects = await prisma.project.findMany({
-      where: { isActive: true },
-      include: {
-        costSharingFrom: {
-          include: {
-            destinationProject: true,
-          },
-        },
-        costSharingTo: {
-          include: {
-            sourceProject: true,
-          },
-        },
-      },
-    });
-
-    // Calculate cost for each project
-    const calculations: CostSharingCalculation[] = [];
-
-    for (const project of projects) {
-      // Get roster for this project
-      const roster = await prisma.roster.findUnique({
-        where: {
-          projectId_year_month: {
-            projectId: project.id,
-            year: yearNum,
-            month: monthNum,
-          },
-        },
-      });
-
-      let originalCost = 0;
-
-      if (roster) {
-        // Calculate original cost (sum of all staff salaries)
-        const staff = await prisma.staff.findMany({
-          where: { projectId: project.id },
-        });
-
-        for (const s of staff) {
-          const attendance = await calculateMonthlyAttendance(
-            s.id,
-            roster.id,
-            yearNum,
-            monthNum
-          );
-          originalCost += attendance.netSalary;
-        }
-      }
-
-      // Calculate cost sharing
-      const calculation = await calculateCostSharing(
-        project.id,
-        yearNum,
-        monthNum,
-        originalCost
-      );
-
-      calculations.push(calculation);
-    }
-
-    // Calculate grand totals
-    const grandTotals = calculations.reduce(
-      (acc, calc) => ({
-        originalCost: acc.originalCost + calc.originalCost,
-        sharedOut: acc.sharedOut + calc.sharedOut,
-        sharedIn: acc.sharedIn + calc.sharedIn,
-        netCost: acc.netCost + calc.netCost,
-      }),
-      {
-        originalCost: 0,
-        sharedOut: 0,
-        sharedIn: 0,
-        netCost: 0,
-      }
-    );
-
-    return res.json({
-      report: {
-        year: yearNum,
-        month: monthNum,
-        projects: calculations,
-        grandTotals,
-      },
-    });
-  } catch (error) {
-    console.error('Get cost sharing report error:', error);
-    return res.status(500).json({ error: 'Failed to generate cost sharing report' });
-  }
-};
-
-/**
  * Get financial overview for admin (all projects summary)
  */
 export const getFinancialOverview = async (req: AuthRequest, res: Response) => {
@@ -309,9 +203,15 @@ export const getFinancialOverview = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Invalid year or month' });
     }
 
+    const isAdmin = isSuperAdmin(req);
+    const allowedIds = !isAdmin && req.user ? await getAccessibleProjectIds(req.user.userId) : undefined;
+
     // Get all projects
     const projects = await prisma.project.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(allowedIds ? { id: { in: allowedIds } } : {}),
+      },
     });
 
     const projectSummaries = [];
@@ -393,6 +293,10 @@ export const exportReportCSV = async (req: AuthRequest, res: Response) => {
 
     const yearNum = parseInt(year as string);
     const monthNum = parseInt(month as string);
+
+    if (!(await ensureProjectAccess(req, projectId as string))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
+    }
 
     // Get the report data
     const roster = await prisma.roster.findUnique({

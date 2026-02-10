@@ -9,6 +9,8 @@ import {
   Modal,
   Form,
   Input,
+  InputNumber,
+  Select,
   Switch,
   TimePicker,
   message,
@@ -22,6 +24,8 @@ import {
   EditOutlined,
   DeleteOutlined,
   ClockCircleOutlined,
+  TeamOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
@@ -35,8 +39,15 @@ interface ShiftType {
   startTime: string | null;
   endTime: string | null;
   color: string;
+  textColor?: string | null;
   isWorkShift: boolean;
   isSystemDefault?: boolean;
+}
+
+interface Position {
+  id: string;
+  name: string;
+  defaultWage: number;
 }
 
 const SettingsPage: React.FC = () => {
@@ -45,6 +56,12 @@ const SettingsPage: React.FC = () => {
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<ShiftType | null>(null);
   const [shiftForm] = Form.useForm();
+  const [isPositionModalOpen, setIsPositionModalOpen] = useState(false);
+  const [editingPosition, setEditingPosition] = useState<Position | null>(null);
+  const [positionForm] = Form.useForm();
+  const [isApplyWageModalOpen, setIsApplyWageModalOpen] = useState(false);
+  const [targetPosition, setTargetPosition] = useState<Position | null>(null);
+  const [applyMode, setApplyMode] = useState<'all' | 'not_overridden'>('all');
 
   // Use stores
   const { isAuthenticated, accessToken } = useAuthStore();
@@ -54,6 +71,12 @@ const SettingsPage: React.FC = () => {
     addShiftType,
     updateShiftType,
     deleteShiftType,
+    positions,
+    fetchPositions,
+    addPosition,
+    updatePosition,
+    deletePosition,
+    applyPositionDefaultWage,
   } = useSettingsStore();
 
   // Check authentication
@@ -70,8 +93,9 @@ const SettingsPage: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated && accessToken) {
       fetchShiftTypes();
+      fetchPositions();
     }
-  }, [fetchShiftTypes, isAuthenticated, accessToken]);
+  }, [fetchShiftTypes, fetchPositions, isAuthenticated, accessToken]);
 
   // Shift handlers
   const handleCreateShift = () => {
@@ -80,6 +104,7 @@ const SettingsPage: React.FC = () => {
     shiftForm.setFieldsValue({
       color: '#1890ff',
       isWorkShift: true,
+      textColor: '#fff',
     });
     setIsShiftModalOpen(true);
   };
@@ -93,6 +118,7 @@ const SettingsPage: React.FC = () => {
       endTime: shift.endTime ? dayjs(shift.endTime, 'HH:mm') : null,
       color: shift.color,
       isWorkShift: shift.isWorkShift,
+      textColor: shift.textColor || (shift.isWorkShift ? '#fff' : '#000'),
     });
     setIsShiftModalOpen(true);
   };
@@ -111,6 +137,7 @@ const SettingsPage: React.FC = () => {
         startTime: values.startTime ? values.startTime.format('HH:mm') : null,
         endTime: values.endTime ? values.endTime.format('HH:mm') : null,
         color,
+        textColor: values.textColor || (values.isWorkShift ? '#fff' : '#000'),
         isWorkShift: values.isWorkShift ?? true,
       };
 
@@ -143,6 +170,77 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // Position handlers
+  const handleCreatePosition = () => {
+    setEditingPosition(null);
+    positionForm.resetFields();
+    positionForm.setFieldsValue({ defaultWage: 0 });
+    setIsPositionModalOpen(true);
+  };
+
+  const handleEditPosition = (position: Position) => {
+    setEditingPosition(position);
+    positionForm.setFieldsValue({
+      name: position.name,
+      defaultWage: position.defaultWage,
+    });
+    setIsPositionModalOpen(true);
+  };
+
+  const handleSubmitPosition = async () => {
+    try {
+      const values = await positionForm.validateFields();
+      const payload = {
+        name: values.name,
+        defaultWage: values.defaultWage ?? 0,
+      };
+
+      if (editingPosition) {
+        await updatePosition(editingPosition.id, payload);
+        message.success('แก้ไขตำแหน่งสำเร็จ');
+      } else {
+        await addPosition(payload);
+        message.success('เพิ่มตำแหน่งสำเร็จ');
+      }
+
+      setIsPositionModalOpen(false);
+      positionForm.resetFields();
+      setEditingPosition(null);
+    } catch (error) {
+      console.error('Error submitting position:', error);
+      message.error('เกิดข้อผิดพลาดในการบันทึกตำแหน่ง');
+    }
+  };
+
+  const handleDeletePosition = async (id: string) => {
+    try {
+      await deletePosition(id);
+      message.success('ลบตำแหน่งสำเร็จ');
+    } catch (error: any) {
+      console.error('Error deleting position:', error);
+      message.error(error.response?.data?.error || 'ลบตำแหน่งไม่สำเร็จ');
+    }
+  };
+
+  const handleOpenApplyWage = (position: Position) => {
+    setTargetPosition(position);
+    setApplyMode('all');
+    setIsApplyWageModalOpen(true);
+  };
+
+  const handleApplyWage = async () => {
+    if (!targetPosition) return;
+    try {
+      const count = await applyPositionDefaultWage(targetPosition.id, applyMode);
+      message.success(`อัปเดตค่าแรงพนักงานสำเร็จ ${count} คน`);
+      setIsApplyWageModalOpen(false);
+      setTargetPosition(null);
+    } catch (error: any) {
+      console.error('Error applying wage:', error);
+      message.error(error.response?.data?.error || 'อัปเดตค่าแรงไม่สำเร็จ');
+    }
+  };
+
   // Shift columns
   const shiftColumns = [
     {
@@ -154,7 +252,7 @@ const SettingsPage: React.FC = () => {
         <Tag
           style={{
             backgroundColor: record.color,
-            color: record.isWorkShift ? '#fff' : '#000',
+            color: record.textColor ?? (record.isWorkShift ? '#fff' : '#000'),
             fontWeight: 'bold',
           }}
         >
@@ -234,6 +332,46 @@ const SettingsPage: React.FC = () => {
     },
   ];
 
+  const positionColumns = [
+    {
+      title: 'ตำแหน่ง',
+      dataIndex: 'name',
+      key: 'name',
+    },
+    {
+      title: 'ค่าแรง/วัน (บาท)',
+      dataIndex: 'defaultWage',
+      key: 'defaultWage',
+      render: (value: number) => `฿${Number(value).toLocaleString()}`,
+    },
+    {
+      title: 'จัดการ',
+      key: 'action',
+      render: (_: any, record: Position) => (
+        <Space>
+          <Button
+            type="text"
+            icon={<SyncOutlined />}
+            title="อัปเดตค่าแรงพนักงานตามตำแหน่ง"
+            onClick={() => handleOpenApplyWage(record)}
+          />
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            onClick={() => handleEditPosition(record)}
+          />
+          <Popconfirm
+            title="ยืนยันการลบ?"
+            description="คุณแน่ใจหรือไม่ว่าต้องการลบตำแหน่งนี้?"
+            onConfirm={() => handleDeletePosition(record.id)}
+          >
+            <Button type="text" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
   return (
     <div>
       <Card
@@ -271,6 +409,36 @@ const SettingsPage: React.FC = () => {
                   <Table
                     columns={shiftColumns}
                     dataSource={shiftTypes}
+                    rowKey="id"
+                    pagination={false}
+                  />
+                </div>
+              ),
+            },
+            {
+              key: 'positions',
+              label: (
+                <span>
+                  <TeamOutlined /> ตำแหน่ง
+                </span>
+              ),
+              children: (
+                <div>
+                  <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+                    <p style={{ color: '#666' }}>
+                      กำหนดตำแหน่งพนักงานและค่าแรง/วันเริ่มต้น
+                    </p>
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={handleCreatePosition}
+                    >
+                      เพิ่มตำแหน่ง
+                    </Button>
+                  </div>
+                  <Table
+                    columns={positionColumns}
+                    dataSource={positions}
                     rowKey="id"
                     pagination={false}
                   />
@@ -341,6 +509,82 @@ const SettingsPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="สีตัวอักษร" name="textColor">
+                <Select
+                  options={[
+                    { value: '#fff', label: 'ขาว' },
+                    { value: '#000', label: 'ดำ' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+
+      {/* Position Modal */}
+      <Modal
+        title={editingPosition ? 'แก้ไขตำแหน่ง' : 'เพิ่มตำแหน่งใหม่'}
+        open={isPositionModalOpen}
+        onOk={handleSubmitPosition}
+        onCancel={() => {
+          setIsPositionModalOpen(false);
+          setEditingPosition(null);
+        }}
+        width={480}
+      >
+        <Form form={positionForm} layout="vertical" style={{ marginTop: 20 }}>
+          <Form.Item
+            label="ชื่อตำแหน่ง"
+            name="name"
+            rules={[{ required: true, message: 'กรุณากรอกชื่อตำแหน่ง' }]}
+          >
+            <Input placeholder="เช่น เจ้าหน้าที่รักษาความปลอดภัย" />
+          </Form.Item>
+          <Form.Item
+            label="ค่าแรง/วัน (บาท)"
+            name="defaultWage"
+            rules={[{ required: true, message: 'กรุณากรอกค่าแรง/วัน' }]}
+          >
+            <InputNumber
+              placeholder="500"
+              min={0}
+              style={{ width: '100%' }}
+              formatter={(value) => `฿ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Apply Position Wage Modal */}
+      <Modal
+        title="อัปเดตค่าแรงพนักงานตามตำแหน่ง"
+        open={isApplyWageModalOpen}
+        onOk={handleApplyWage}
+        onCancel={() => {
+          setIsApplyWageModalOpen(false);
+          setTargetPosition(null);
+        }}
+        okText="อัปเดต"
+        cancelText="ยกเลิก"
+        width={520}
+      >
+        <p style={{ marginBottom: 16 }}>
+          ตำแหน่ง: <strong>{targetPosition?.name}</strong> (ค่าแรง/วันเริ่มต้น: ฿{Number(targetPosition?.defaultWage || 0).toLocaleString()})
+        </p>
+        <Form layout="vertical">
+          <Form.Item label="เลือกรูปแบบการอัปเดต">
+            <Select
+              value={applyMode}
+              onChange={(value) => setApplyMode(value)}
+              options={[
+                { value: 'all', label: 'ทุกคนในตำแหน่งนี้' },
+                { value: 'not_overridden', label: 'เฉพาะคนที่ยังไม่ได้แก้ค่าแรงเอง' },
+              ]}
+            />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

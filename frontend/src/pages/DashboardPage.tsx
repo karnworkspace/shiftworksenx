@@ -27,9 +27,7 @@ import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
 import { useProjectStore } from '../stores/projectStore';
 import { useStaffStore } from '../stores/staffStore';
-import {
-  mockMonthlyAttendance,
-} from '../data/mockData';
+import apiClient from '../services/api';
 
 dayjs.extend(buddhistEra);
 dayjs.locale('th');
@@ -57,6 +55,8 @@ const DashboardPage: React.FC = () => {
   
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
+  const [reportData, setReportData] = useState<AttendanceRecord[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
 
   // Fetch projects on mount
   useEffect(() => {
@@ -77,6 +77,37 @@ const DashboardPage: React.FC = () => {
     }
   }, [selectedProjectId]);
 
+  // Fetch report data when project or date changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      setReportLoading(true);
+      const year = selectedDate.year();
+      const month = selectedDate.month() + 1;
+      apiClient.get('/reports/deduction', {
+        params: { projectId: selectedProjectId, year, month },
+      }).then(res => {
+        const data = res.data?.report?.staff || [];
+        setReportData(data.map((att: any) => ({
+          id: att.staffId,
+          staffId: att.staffId,
+          name: att.staffName,
+          position: att.position,
+          totalWorkDays: att.totalWorkDays || 0,
+          totalAbsent: att.totalAbsent || 0,
+          totalSickLeave: att.totalSickLeave || 0,
+          totalPersonalLeave: att.totalPersonalLeave || 0,
+          totalVacation: att.totalVacation || 0,
+          totalLate: att.totalLate || 0,
+          deductionAmount: att.deductionAmount || 0,
+          totalHours: (att.totalWorkDays || 0) * 8,
+        })));
+      }).catch(err => {
+        console.error('Error fetching report:', err);
+        setReportData([]);
+      }).finally(() => setReportLoading(false));
+    }
+  }, [selectedProjectId, selectedDate]);
+
 
   // Summary Statistics
   const totalProjects = projects.length;
@@ -85,17 +116,7 @@ const DashboardPage: React.FC = () => {
     (s) => s.projectId === selectedProjectId && s.isActive
   ).length;
 
-  // Build attendance report
-  const reportData = useMemo(() => {
-    return mockMonthlyAttendance.map((att) => ({
-      ...att,
-      name: att.staff.name,
-      position: att.staff.position,
-      totalHours: att.totalWorkDays * 8,
-    }));
-  }, []);
-
-  // Calculate summary
+  // Calculate summary from real report data
   const summary = useMemo(() => {
     const total = reportData.reduce(
       (acc, record) => ({

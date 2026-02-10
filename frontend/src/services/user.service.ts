@@ -6,6 +6,13 @@ export interface User {
     name: string;
     role: 'SUPER_ADMIN' | 'AREA_MANAGER' | 'SITE_MANAGER';
     permissions: string[];
+    projectAccesses?: {
+        projectId: string;
+        project: {
+            id: string;
+            name: string;
+        };
+    }[];
     createdAt: string;
     updatedAt: string;
 }
@@ -16,6 +23,7 @@ export interface CreateUserData {
     name: string;
     role?: string;
     permissions?: string[];
+    projectIds?: string[];
 }
 
 export interface UpdateUserData {
@@ -23,6 +31,7 @@ export interface UpdateUserData {
     name?: string;
     role?: string;
     permissions?: string[];
+    projectIds?: string[];
 }
 
 export interface ChangePasswordData {

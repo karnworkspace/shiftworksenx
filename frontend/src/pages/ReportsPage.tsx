@@ -1,3 +1,4 @@
+﻿
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Card,
@@ -10,16 +11,11 @@ import {
   Col,
   Statistic,
   Tag,
-  Tooltip,
-  Divider,
   Button,
   message,
   Spin,
 } from 'antd';
-import {
-  InfoCircleOutlined,
-  DownloadOutlined,
-} from '@ant-design/icons';
+import { DownloadOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
@@ -27,45 +23,24 @@ import { useRosterStore } from '../stores/rosterStore';
 import { useProjectStore } from '../stores/projectStore';
 import { useStaffStore } from '../stores/staffStore';
 import { useSettingsStore } from '../stores/settingsStore';
-import apiClient from '../services/api';
 import { generateMonthlyReport } from '../utils/pdfGenerator';
 
 dayjs.extend(buddhistEra);
 dayjs.locale('th');
-
 const ReportsPage: React.FC = () => {
   // Use global stores
-  const { projects, getProject, fetchProjects, loading: projectsLoading } = useProjectStore();
+  const { projects, getProject, fetchProjects, loading: projectsLoading, selectedProjectId, setSelectedProjectId } = useProjectStore();
   const { getStaffByProject, fetchStaff, loading: staffLoading } = useStaffStore();
   const { rosterMatrix, fetchRoster, loading: rosterLoading } = useRosterStore();
   const { shiftTypes, fetchShiftTypes, deductionConfig } = useSettingsStore();
 
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
   const [activeTab, setActiveTab] = useState('attendance');
-
-  const [receivedDeductions, setReceivedDeductions] = useState<{
-    loading: boolean;
-    totalReceived: number;
-    details: { projectId: string; projectName: string; amount: number; percentage: number }[];
-    error?: string;
-  }>({
-    loading: false,
-    totalReceived: 0,
-    details: [],
-  });
 
   // Fetch projects on mount
   useEffect(() => {
     fetchProjects();
   }, []);
-
-  // Set default project when projects are loaded
-  useEffect(() => {
-    if (projects.length > 0 && !selectedProjectId) {
-      setSelectedProjectId(projects[0].id);
-    }
-  }, [projects]);
 
   // Fetch staff when project changes
   useEffect(() => {
@@ -89,106 +64,24 @@ const ReportsPage: React.FC = () => {
   }, [selectedProjectId, selectedDate]);
 
   // Filter staff by project using store - only active staff
-  const projectStaff = getStaffByProject(selectedProjectId).filter(staff => staff.isActive);
+  const projectStaff = getStaffByProject(selectedProjectId).filter((staff) => staff.isActive);
 
   // Get current project from store
   const currentProject = getProject(selectedProjectId);
-  const costSharingFrom = currentProject?.costSharingFrom ?? [];
+  const subProjects = Array.isArray(currentProject?.subProjects) ? currentProject?.subProjects : [];
 
-  // Compute received deductions from other projects based on costSharingFrom settings (source -> this project)
-  useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      if (!selectedProjectId || projects.length === 0) return;
-
-      setReceivedDeductions((prev) => ({ ...prev, loading: true, error: undefined }));
-
-      const year = selectedDate.year();
-      const month = selectedDate.month() + 1;
-
-      try {
-        const sourceProjects = projects
-          .filter((p) => p.id !== selectedProjectId)
-          .map((p) => {
-            const cs = (p.costSharingFrom || []).find(
-              (x) => x.destinationProjectId === selectedProjectId && (x.percentage || 0) > 0
-            );
-            return cs
-              ? {
-                projectId: p.id,
-                projectName: p.name,
-                percentage: cs.percentage,
-              }
-              : null;
-          })
-          .filter(Boolean) as Array<{ projectId: string; projectName: string; percentage: number }>;
-
-        if (sourceProjects.length === 0) {
-          if (!cancelled) {
-            setReceivedDeductions({ loading: false, totalReceived: 0, details: [] });
-          }
-          return;
-        }
-
-        const results = await Promise.all(
-          sourceProjects.map(async (sp) => {
-            const resp = await apiClient.get('/reports/deduction', {
-              params: { projectId: sp.projectId, year, month },
-            });
-            const projectTotalDeduction = resp.data?.report?.totals?.totalDeduction || 0;
-            const sharedAmount = (projectTotalDeduction * sp.percentage) / 100;
-            return {
-              ...sp,
-              amount: sharedAmount,
-            };
-          })
-        );
-
-        const details = results
-          .filter((r) => r.amount > 0)
-          .map((r) => ({
-            projectId: r.projectId,
-            projectName: r.projectName,
-            amount: r.amount,
-            percentage: r.percentage,
-          }));
-
-        const totalReceived = details.reduce((sum, d) => sum + d.amount, 0);
-
-        if (!cancelled) {
-          setReceivedDeductions({ loading: false, totalReceived, details });
-        }
-      } catch (e: any) {
-        if (!cancelled) {
-          setReceivedDeductions((prev) => ({
-            ...prev,
-            loading: false,
-            error: e?.message || 'คำนวณ Cost Sharing ไม่สำเร็จ',
-          }));
-        }
-      }
-    };
-
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [projects, selectedProjectId, selectedDate]);
-
-  // Calculate deductions received FROM other projects (other projects share TO this project)
   // Calculate attendance data dynamically from roster entries
   const attendanceData = useMemo(() => {
     const daysInMonth = selectedDate.daysInMonth();
 
     // Get shift codes dynamically for counting
-    const absentShift = shiftTypes.find(s => s.code === 'ขาด' || s.code === 'ข');
+    const absentShift = shiftTypes.find((s) => s.code === 'ขาด' || s.code === 'ข');
     const absentCode = absentShift?.code || 'ขาด';
-    const sickShift = shiftTypes.find(s => s.code === 'ป่วย' || s.code === 'ป');
+    const sickShift = shiftTypes.find((s) => s.code === 'ป่วย' || s.code === 'ป');
     const sickCode = sickShift?.code || 'ป';
-    const personalShift = shiftTypes.find(s => s.code === 'กิจ' || s.code === 'ก');
+    const personalShift = shiftTypes.find((s) => s.code === 'กิจ' || s.code === 'ก');
     const personalCode = personalShift?.code || 'ก';
-    const vacationShift = shiftTypes.find(s => s.code === 'ลา' || s.code === 'พ');
+    const vacationShift = shiftTypes.find((s) => s.code === 'ลา' || s.code === 'พ');
     const vacationCode = vacationShift?.code || 'พ';
 
     return projectStaff.map((staff) => {
@@ -228,19 +121,7 @@ const ReportsPage: React.FC = () => {
       const absentDeduction = totalAbsent * staff.wagePerDay;
       const excessSickDays = Math.max(0, totalSickLeave - deductionConfig.maxSickLeaveDaysPerMonth);
       const sickLeaveDeduction = excessSickDays * deductionConfig.sickLeaveDeductionPerDay;
-      const totalDeductionRaw = absentDeduction + sickLeaveDeduction;
-
-      // Calculate shared deduction (how much THIS project shares to others)
-      let ownProjectDeduction = totalDeductionRaw;
-      let sharedToOthers = 0;
-
-      // If current project has cost sharing settings (sharing TO others)
-      if (costSharingFrom.length > 0) {
-        const sharedPercentages = costSharingFrom.reduce((sum, cs) => sum + (cs.percentage || 0), 0);
-        const thisProjectPercentage = Math.max(0, 100 - sharedPercentages);
-        ownProjectDeduction = (totalDeductionRaw * thisProjectPercentage) / 100;
-        sharedToOthers = totalDeductionRaw - ownProjectDeduction;
-      }
+      const totalDeduction = absentDeduction + sickLeaveDeduction;
 
       return {
         staffId: staff.id,
@@ -253,45 +134,44 @@ const ReportsPage: React.FC = () => {
         totalPersonalLeave,
         totalVacation,
         totalLeave,
-        originalDeduction: totalDeductionRaw,
-        ownProjectDeduction, // โครงการตัวเอง (หลังหักส่วนที่แชร์ไป)
-        sharedToOthers, // ส่วนที่แชร์ไปโครงการอื่น
+        totalDeduction,
         expectedSalary: totalWorkDays * staff.wagePerDay,
-        netSalary: totalWorkDays * staff.wagePerDay - ownProjectDeduction,
+        netSalary: totalWorkDays * staff.wagePerDay - totalDeduction,
       };
     });
-  }, [projectStaff, costSharingFrom, selectedDate, rosterMatrix, deductionConfig]);
+  }, [projectStaff, selectedDate, rosterMatrix, deductionConfig, shiftTypes]);
 
   // Calculate totals
   const totals = useMemo(() => {
-    const base = attendanceData.reduce(
+    return attendanceData.reduce(
       (acc, curr) => ({
         totalWorkDays: acc.totalWorkDays + curr.totalWorkDays,
         totalAbsent: acc.totalAbsent + curr.totalAbsent,
         totalLeave: acc.totalLeave + curr.totalLeave,
-        ownDeduction: acc.ownDeduction + curr.ownProjectDeduction,
-        sharedToOthers: acc.sharedToOthers + curr.sharedToOthers,
+        totalDeduction: acc.totalDeduction + curr.totalDeduction,
         totalExpectedSalary: acc.totalExpectedSalary + curr.expectedSalary,
       }),
       {
         totalWorkDays: 0,
         totalAbsent: 0,
         totalLeave: 0,
-        ownDeduction: 0,
-        sharedToOthers: 0,
+        totalDeduction: 0,
         totalExpectedSalary: 0,
       }
     );
+  }, [attendanceData]);
 
-    // Grand total = own deduction + received from others
-    const grandTotalDeduction = base.ownDeduction + receivedDeductions.totalReceived;
-
-    return {
-      ...base,
-      receivedFromOthers: receivedDeductions.totalReceived,
-      grandTotalDeduction,
-    };
-  }, [attendanceData, receivedDeductions]);
+  const subProjectDetails = useMemo(() => {
+    if (!subProjects || subProjects.length === 0) return [];
+    const totalDeduction = totals.totalDeduction ?? 0;
+    return subProjects
+      .map((sp: any) => ({
+        name: typeof sp?.name === 'string' ? sp.name.trim() : '',
+        percentage: Number(sp?.percentage),
+        amount: (totalDeduction * Number(sp?.percentage || 0)) / 100,
+      }))
+      .filter((sp) => sp.name && Number.isFinite(sp.percentage));
+  }, [subProjects, totals.totalDeduction]);
 
   // Attendance report columns
   const attendanceColumns = [
@@ -321,22 +201,18 @@ const ReportsPage: React.FC = () => {
       title: 'ขาด',
       dataIndex: 'totalAbsent',
       key: 'totalAbsent',
-      render: (value: number) => value > 0 ? <Tag color="red">{value}</Tag> : '-',
+      render: (value: number) => (value > 0 ? <Tag color="red">{value}</Tag> : '-'),
     },
     {
       title: 'ลา',
       dataIndex: 'totalLeave',
       key: 'totalLeave',
-      render: (value: number) => value > 0 ? <Tag color="blue">{value}</Tag> : '-',
+      render: (value: number) => (value > 0 ? <Tag color="blue">{value}</Tag> : '-'),
     },
     {
-      title: (
-        <Tooltip title="หักเงินหลังแชร์ Cost ไปโครงการอื่นแล้ว">
-          หักเงิน (โครงการนี้) <InfoCircleOutlined />
-        </Tooltip>
-      ),
-      dataIndex: 'ownProjectDeduction',
-      key: 'ownProjectDeduction',
+      title: 'หักเงิน',
+      dataIndex: 'totalDeduction',
+      key: 'totalDeduction',
       render: (value: number) => (
         <span style={{ color: 'red', fontWeight: 'bold' }}>
           {value > 0 ? `-฿${value.toLocaleString()}` : '-'}
@@ -374,12 +250,11 @@ const ReportsPage: React.FC = () => {
         staff: projectStaff,
         rosterData: rosterDataForPDF,
         shiftTypes: shiftTypes,
+        deductionConfig: deductionConfig,
         summary: {
           totalAbsent: totals.totalAbsent,
-          ownDeduction: totals.ownDeduction,
-          receivedFromOthers: totals.receivedFromOthers,
-          receivedDetails: receivedDeductions.details,
-          grandTotalDeduction: totals.grandTotalDeduction,
+          totalDeduction: totals.totalDeduction,
+          subProjects: subProjectDetails,
         },
       });
 
@@ -394,7 +269,7 @@ const ReportsPage: React.FC = () => {
       <Card
         title={
           <span style={{ fontSize: '20px', fontWeight: 'bold' }}>
-            📊 รายงานและสถิติ
+            รายงานและสถิติ
           </span>
         }
         extra={
@@ -435,12 +310,25 @@ const ReportsPage: React.FC = () => {
             items={[
               {
                 key: 'attendance',
-                label: '📝 รายงานการเข้าทำงาน',
+                label: 'รายงานการเข้างาน',
                 children: (
                   <div>
+                    {currentProject && subProjects.length > 0 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <Space wrap size={8}>
+                          <Tag color="blue">โครงการย่อย</Tag>
+                          {subProjects.map((sp: any, idx: number) => (
+                            <Tag key={`${sp?.name ?? 'sub'}-${idx}`} color="geekblue">
+                              {sp?.name ?? '-'} {Number.isFinite(Number(sp?.percentage)) ? `(${Number(sp?.percentage)}%)` : ''}
+                            </Tag>
+                          ))}
+                        </Space>
+                      </div>
+                    )}
+
                     {/* Summary Cards */}
                     <Row gutter={16} style={{ marginBottom: 24 }}>
-                      <Col span={4}>
+                      <Col span={8}>
                         <Card>
                           <Statistic
                             title="จำนวนพนักงาน"
@@ -449,7 +337,7 @@ const ReportsPage: React.FC = () => {
                           />
                         </Card>
                       </Col>
-                      <Col span={4}>
+                      <Col span={8}>
                         <Card>
                           <Statistic
                             title="ขาดงานรวม"
@@ -459,105 +347,21 @@ const ReportsPage: React.FC = () => {
                           />
                         </Card>
                       </Col>
-                      <Col span={6}>
-                        <Card>
-                          <Statistic
-                            title={
-                              <Tooltip title="ยอดหักเงินของโครงการนี้ (หลังหักส่วนที่แชร์ไปโครงการอื่นแล้ว)">
-                                หักเงิน (โครงการนี้) <InfoCircleOutlined />
-                              </Tooltip>
-                            }
-                            value={totals.ownDeduction}
-                            prefix="฿"
-                            valueStyle={{ color: '#ff4d4f' }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col span={4}>
-                        <Card>
-                          <Statistic
-                            title={
-                              <Tooltip title={
-                                receivedDeductions.loading
-                                  ? 'กำลังคำนวณ...'
-                                  : receivedDeductions.details.length > 0
-                                    ? receivedDeductions.details.map(d =>
-                                      `${d.projectName}: ฿${d.amount.toLocaleString()} (${d.percentage}%)`
-                                    ).join('\n')
-                                    : 'ไม่มีโครงการอื่นแชร์มา'
-                              }>
-                                หักเงิน (จากโครงการอื่น) <InfoCircleOutlined />
-                              </Tooltip>
-                            }
-                            value={totals.receivedFromOthers}
-                            prefix="฿"
-                            valueStyle={{ color: '#fa8c16' }}
-                          />
-                        </Card>
-                      </Col>
-                      <Col span={6}>
+                      <Col span={8}>
                         <Card style={{ background: '#fff2f0', borderColor: '#ffccc7' }}>
                           <Statistic
                             title={
                               <span style={{ fontWeight: 'bold' }}>
-                                💰 หักเงินรวมทั้งหมด
+                                หักเงินรวมทั้งหมด
                               </span>
                             }
-                            value={totals.grandTotalDeduction}
+                            value={totals.totalDeduction}
                             prefix="฿"
                             valueStyle={{ color: '#cf1322', fontWeight: 'bold' }}
                           />
                         </Card>
                       </Col>
                     </Row>
-
-                    {/* Cost Sharing Info */}
-                    {receivedDeductions.details.length > 0 && (
-                      <Card
-                        size="small"
-                        style={{ marginBottom: 16, background: '#fffbe6', borderColor: '#ffe58f' }}
-                      >
-                        <Row align="middle">
-                          <Col span={24}>
-                            <span style={{ fontWeight: 'bold', marginRight: 8 }}>📤 รับค่าใช้จ่ายจากโครงการอื่น:</span>
-                            <Space split={<Divider type="vertical" />}>
-                              {receivedDeductions.details.map((detail, index) => (
-                                <Tag key={index} color="orange">
-                                  {detail.projectName}: ฿{detail.amount.toLocaleString()} ({detail.percentage}%)
-                                </Tag>
-                              ))}
-                            </Space>
-                          </Col>
-                        </Row>
-                      </Card>
-                    )}
-
-                    {/* Cost Sharing to Others Info */}
-                    {costSharingFrom.length > 0 && (
-                      <Card
-                        size="small"
-                        style={{ marginBottom: 16, background: '#f6ffed', borderColor: '#b7eb8f' }}
-                      >
-                        <Row align="middle">
-                          <Col span={24}>
-                            <span style={{ fontWeight: 'bold', marginRight: 8 }}>📥 แชร์ค่าใช้จ่ายไปโครงการอื่น:</span>
-                            <Space split={<Divider type="vertical" />}>
-                              {costSharingFrom.map((cs: any, index: number) => {
-                                const destName = cs.destinationProject?.name || getProject(cs.destinationProjectId)?.name || 'ไม่ทราบ';
-                                return (
-                                  <Tag key={index} color="green">
-                                    {destName}: {cs.percentage}%
-                                  </Tag>
-                                );
-                              })}
-                            </Space>
-                            <Tag color="blue" style={{ marginLeft: 8 }}>
-                              โครงการนี้รับภาระ: {Math.max(0, 100 - costSharingFrom.reduce((sum: number, cs: any) => sum + (cs.percentage || 0), 0))}%
-                            </Tag>
-                          </Col>
-                        </Row>
-                      </Card>
-                    )}
 
                     {/* Report Table */}
                     <Table

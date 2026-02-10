@@ -1,15 +1,5 @@
 import apiClient from './api';
 
-export interface CostSharing {
-  id?: string;
-  destinationProjectId: string;
-  percentage: number;
-  destinationProject?: {
-    id: string;
-    name: string;
-  };
-}
-
 export interface Project {
   id: string;
   name: string;
@@ -18,8 +8,10 @@ export interface Project {
   description?: string;
   managerId?: string;
   responsiblePerson?: string;
+  subProjects?: { name: string; percentage: number }[];
   isActive: boolean;
-  costSharingFrom?: CostSharing[];
+  editCutoffDay?: number;
+  editCutoffNextMonth?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,8 +22,10 @@ export interface CreateProjectData {
   themeColor?: string;
   description?: string;
   managerId?: string;
+  subProjects?: { name: string; percentage: number }[];
   isActive?: boolean;
-  costSharingFrom?: CostSharing[];
+  editCutoffDay?: number;
+  editCutoffNextMonth?: boolean;
 }
 
 export interface UpdateProjectData {
@@ -40,8 +34,10 @@ export interface UpdateProjectData {
   themeColor?: string;
   description?: string;
   managerId?: string;
+  subProjects?: { name: string; percentage: number }[];
   isActive?: boolean;
-  costSharingFrom?: CostSharing[];
+  editCutoffDay?: number;
+  editCutoffNextMonth?: boolean;
 }
 
 export const projectService = {

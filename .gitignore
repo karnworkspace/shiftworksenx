@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+**/node_modules/
 /.pnp
 .pnp.js
 frontend/node_modules/
@@ -19,7 +20,12 @@ backend/node_modules/
 
 # misc
 .DS_Store
+._*
 *.pem
+*.jpg
+*.jpeg
+*.png
+.vscode/
 
 # debug
 npm-debug.log*
@@ -29,6 +35,9 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+backend/.env
+frontend/.env
+deploy/**/.env
 
 # vercel
 .vercel

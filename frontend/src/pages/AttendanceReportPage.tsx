@@ -22,10 +22,10 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
-import { mockShiftTypes } from '../data/mockData';
 import { useProjectStore } from '../stores/projectStore';
 import { useStaffStore } from '../stores/staffStore';
 import { useRosterStore } from '../stores/rosterStore';
+import { useSettingsStore } from '../stores/settingsStore';
 
 dayjs.extend(buddhistEra);
 dayjs.locale('th');
@@ -55,10 +55,12 @@ const AttendanceReportPage: React.FC = () => {
   const { projects, fetchProjects } = useProjectStore();
   const { getStaffByProject, fetchStaff } = useStaffStore();
   const { rosterMatrix, fetchRoster } = useRosterStore();
+  const { shiftTypes, fetchShiftTypes } = useSettingsStore();
 
   // Fetch data on mount
   useEffect(() => {
     fetchProjects();
+    fetchShiftTypes();
   }, []);
 
   // Set default project
@@ -97,7 +99,7 @@ const AttendanceReportPage: React.FC = () => {
       // Count from roster matrix
       for (let day = 1; day <= daysInMonth; day++) {
         const shiftCode = rosterMatrix?.[staff.id]?.days[day]?.shiftCode || 'OFF';
-        const shiftType = mockShiftTypes.find(st => st.code === shiftCode);
+        const shiftType = shiftTypes.find(st => st.code === shiftCode);
         
         if (shiftType?.isWorkShift) {
           totalWorkDays++;

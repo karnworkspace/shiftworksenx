@@ -16,6 +16,7 @@ import rosterRoutes from './routes/roster.routes';
 import reportRoutes from './routes/report.routes';
 import userRoutes from './routes/user.routes';
 import shiftRoutes from './routes/shift.routes';
+import positionRoutes from './routes/position.routes';
 
 const app: Express = express();
 const PORT = process.env.PORT || 5000;
@@ -45,6 +46,7 @@ app.use('/api/rosters', rosterRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/shifts', shiftRoutes);
+app.use('/api/positions', positionRoutes);
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {

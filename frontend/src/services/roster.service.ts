@@ -68,6 +68,18 @@ export interface BatchUpdateRosterData {
   }>;
 }
 
+export interface ImportRosterData {
+  projectId: string;
+  year: number;
+  month: number;
+  entries: Array<{
+    staffId: string;
+    day: number;
+    shiftCode: string;
+    notes?: string;
+  }>;
+}
+
 export const rosterService = {
   // Get roster for a specific project and month
   getRoster: async (projectId: string, year: number, month: number): Promise<GetRosterResponse> => {
@@ -100,6 +112,12 @@ export const rosterService = {
   // Batch update multiple roster entries
   batchUpdate: async (data: BatchUpdateRosterData): Promise<{ entries: RosterEntry[] }> => {
     const response = await apiClient.post('/rosters/batch', data);
+    return response.data;
+  },
+
+  // Import roster entries (replace all)
+  importRoster: async (data: ImportRosterData): Promise<{ success: boolean; count: number }> => {
+    const response = await apiClient.post('/rosters/import', data);
     return response.data;
   },
 

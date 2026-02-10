@@ -26,10 +26,10 @@ import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
 import CalendarView from '../components/CalendarView';
-import { mockShiftTypes } from '../data/mockData';
 import { useProjectStore } from '../stores/projectStore';
 import { useStaffStore } from '../stores/staffStore';
 import { useRosterStore } from '../stores/rosterStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { useEffect } from 'react';
 
 dayjs.extend(buddhistEra);
@@ -49,11 +49,13 @@ const RosterCalendarPage: React.FC = () => {
   const { projects, getProject, fetchProjects } = useProjectStore();
   const { getStaffByProject, fetchStaff } = useStaffStore();
   const { currentRoster, rosterMatrix, fetchRoster, updateRosterEntry } = useRosterStore();
+  const { shiftTypes, fetchShiftTypes } = useSettingsStore();
 
   // Fetch data on mount
   useEffect(() => {
     fetchProjects();
-  }, []);
+    fetchShiftTypes();
+  }, [];
 
   // Set default project
   useEffect(() => {
@@ -95,7 +97,7 @@ const RosterCalendarPage: React.FC = () => {
     projectStaff.forEach((staff) => {
       const staffData = rosterMatrix[staff.id];
       const shiftCode = staffData?.days[today]?.shiftCode || 'OFF';
-      const shiftConfig = mockShiftTypes.find((s) => s.code === shiftCode);
+      const shiftConfig = shiftTypes.find((s) => s.code === shiftCode);
       if (shiftConfig?.isWorkShift) {
         working++;
       } else if (shiftCode === 'OFF') {
@@ -260,7 +262,7 @@ const RosterCalendarPage: React.FC = () => {
       <Card style={{ marginTop: '16px' }} size="small">
         <Space size="small" wrap>
           <strong>รหัสกะ:</strong>
-          {mockShiftTypes.map((shift) => (
+          {shiftTypes.map((shift) => (
             <Tag key={shift.id} color={shift.color}>
               {shift.code} {shift.name}
               {shift.startTime && ` (${shift.startTime}-${shift.endTime})`}
@@ -303,7 +305,7 @@ const RosterCalendarPage: React.FC = () => {
         <Form form={form} layout="vertical">
           <Form.Item label="เลือกกะ" name="shiftCode">
             <Select>
-              {mockShiftTypes.map((shift) => (
+              {shiftTypes.map((shift) => (
                 <Select.Option key={shift.id} value={shift.code}>
                   <Tag color={shift.color} style={{ marginRight: '8px' }}>
                     {shift.code}

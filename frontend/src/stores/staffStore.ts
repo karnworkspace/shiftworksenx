@@ -11,6 +11,9 @@ interface StaffStore {
   fetchAllStaff: (projectIds: string[]) => Promise<void>;
   addStaff: (data: CreateStaffData) => Promise<Staff | null>;
   updateStaff: (id: string, updates: UpdateStaffData) => Promise<Staff | null>;
+  applyDefaultShift: (id: string, defaultShift: string) => Promise<Staff | null>;
+  applyWeeklyOffDay: (id: string, weeklyOffDay: number | null) => Promise<Staff | null>;
+  reorderStaff: (projectId: string, orderedStaffIds: string[]) => Promise<boolean>;
   deleteStaff: (id: string) => Promise<boolean>;
   setStaffInactive: (id: string) => Promise<Staff | null>;
   
@@ -87,6 +90,59 @@ export const useStaffStore = create<StaffStore>((set, get) => ({
     }
   },
 
+  applyDefaultShift: async (id: string, defaultShift: string) => {
+    set({ loading: true, error: null });
+    try {
+      const updatedStaff = await staffService.applyDefaultShift(id, defaultShift);
+      set((state) => ({
+        staff: state.staff.map((s) => (s.id === id ? updatedStaff : s)),
+        loading: false,
+      }));
+      return updatedStaff;
+    } catch (error: any) {
+      set({ error: error.response?.data?.error || 'Failed to apply default shift', loading: false });
+      return null;
+    }
+  },
+
+  applyWeeklyOffDay: async (id: string, weeklyOffDay: number | null) => {
+    set({ loading: true, error: null });
+    try {
+      const updatedStaff = await staffService.applyWeeklyOffDay(id, weeklyOffDay);
+      set((state) => ({
+        staff: state.staff.map((s) => (s.id === id ? updatedStaff : s)),
+        loading: false,
+      }));
+      return updatedStaff;
+    } catch (error: any) {
+      set({ error: error.response?.data?.error || 'Failed to apply weekly off day', loading: false });
+      return null;
+    }
+  },
+
+  reorderStaff: async (projectId: string, orderedStaffIds: string[]) => {
+    set({ loading: true, error: null });
+    try {
+      await staffService.reorder(projectId, orderedStaffIds);
+      set((state) => {
+        const orderMap = new Map<string, number>();
+        orderedStaffIds.forEach((id, idx) => orderMap.set(id, idx + 1));
+        return {
+          staff: state.staff.map((s) =>
+            s.projectId === projectId && orderMap.has(s.id)
+              ? { ...s, displayOrder: orderMap.get(s.id) }
+              : s
+          ),
+          loading: false,
+        };
+      });
+      return true;
+    } catch (error: any) {
+      set({ error: error.response?.data?.error || 'Failed to reorder staff', loading: false });
+      return false;
+    }
+  },
+
   deleteStaff: async (id: string) => {
     set({ loading: true, error: null });
     try {
@@ -122,11 +178,27 @@ export const useStaffStore = create<StaffStore>((set, get) => ({
   },
 
   getStaffByProject: (projectId: string) => {
-    return get().staff.filter((s) => s.projectId === projectId);
+    return get()
+      .staff
+      .filter((s) => s.projectId === projectId)
+      .sort((a, b) => {
+        const aOrder = a.displayOrder ?? 999999;
+        const bOrder = b.displayOrder ?? 999999;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return (a.name || '').localeCompare(b.name || '');
+      });
   },
 
   getActiveStaffByProject: (projectId: string) => {
-    return get().staff.filter((s) => s.projectId === projectId && s.isActive);
+    return get()
+      .staff
+      .filter((s) => s.projectId === projectId && s.isActive)
+      .sort((a, b) => {
+        const aOrder = a.displayOrder ?? 999999;
+        const bOrder = b.displayOrder ?? 999999;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return (a.name || '').localeCompare(b.name || '');
+      });
   },
 
   setStaff: (staff: Staff[]) => set({ staff }),

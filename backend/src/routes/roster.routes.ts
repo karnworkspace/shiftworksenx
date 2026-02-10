@@ -4,6 +4,7 @@ import {
   getRoster,
   updateRosterEntry,
   batchUpdateRosterEntries,
+  importRoster,
   getRosterDayStats,
   deleteRosterEntry,
 } from '../controllers/roster.controller';
@@ -22,6 +23,9 @@ router.post('/entry', updateRosterEntry);
 
 // POST /api/rosters/batch
 router.post('/batch', batchUpdateRosterEntries);
+
+// POST /api/rosters/import
+router.post('/import', importRoster);
 
 // DELETE /api/rosters/entry/:id
 router.delete('/entry/:id', deleteRosterEntry);

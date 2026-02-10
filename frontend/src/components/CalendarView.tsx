@@ -3,7 +3,7 @@ import { Tag } from 'antd';
 import dayjs from 'dayjs';
 import 'dayjs/locale/th';
 import buddhistEra from 'dayjs/plugin/buddhistEra';
-import { mockShiftTypes } from '../data/mockData';
+import { useSettingsStore } from '../stores/settingsStore';
 
 dayjs.extend(buddhistEra);
 dayjs.locale('th');
@@ -53,8 +53,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, [entries]);
 
   // หา shift config
+  const { shiftTypes } = useSettingsStore();
   const getShiftConfig = (code: string) => {
-    return mockShiftTypes.find((s) => s.code === code);
+    return shiftTypes.find((s) => s.code === code);
   };
 
   // แสดงวันในสัปดาห์

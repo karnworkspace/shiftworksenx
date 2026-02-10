@@ -4,7 +4,6 @@ import {
   mockRoster,
   mockRosterEntries,
   mockDeductionReport,
-  mockCostSharingReport,
   mockDashboardStats,
 } from '../data/mockData';
 
@@ -36,7 +35,6 @@ export const mockApi = {
       ...data,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      costSharings: [],
     };
   },
 
@@ -166,37 +164,25 @@ export const mockApi = {
     return mockDeductionReport;
   },
 
-  async getCostSharingReport(_projectId: string, _year: number, _month: number) {
-    if (!USE_MOCK_DATA) throw new Error('Use real API');
-    await delay(800);
-    return mockCostSharingReport;
-  },
 
   async exportReportCSV(type: string, _projectId: string, _year: number, _month: number) {
     if (!USE_MOCK_DATA) throw new Error('Use real API');
     await delay(1000);
     
-    // จำลองการสร้าง CSV
+    // ????????????? CSV
     let csvContent = '';
     
     if (type === 'deduction') {
-      csvContent = 'รายงานการหักเงิน\n';
-      csvContent += 'ชื่อ,ตำแหน่ง,วันทำงาน,วันขาด,วันสาย,หัก (บาท)\n';
+      csvContent = '????????????????\n';
+      csvContent += '????,???????,????????,??????,??????,??? (???)\n';
       mockDeductionReport.details.forEach((att) => {
         csvContent += `${att.staff.name},${att.staff.position},${att.totalWorkDays},${att.totalAbsent},${att.totalLate},${att.deductionAmount}\n`;
-      });
-    } else if (type === 'cost-sharing') {
-      csvContent = 'รายงาน Cost Sharing\n';
-      csvContent += 'โครงการ,เปอร์เซ็นต์,จำนวนเงิน (บาท)\n';
-      mockCostSharingReport.sharings.forEach((sharing) => {
-        csvContent += `${sharing.destinationProject.name},${sharing.percentage}%,${sharing.amount}\n`;
       });
     }
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     return blob;
   },
-
   // Dashboard
   async getDashboardStats() {
     if (!USE_MOCK_DATA) throw new Error('Use real API');

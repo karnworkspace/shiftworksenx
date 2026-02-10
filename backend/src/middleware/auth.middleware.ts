@@ -35,7 +35,7 @@ export const requireAdmin = (
   res: Response,
   next: NextFunction
 ) => {
-  if (req.user?.role !== 'ADMIN') {
+  if (req.user?.role !== 'SUPER_ADMIN') {
     return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึง' });
   }
   next();

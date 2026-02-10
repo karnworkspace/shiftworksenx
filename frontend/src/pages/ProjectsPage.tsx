@@ -18,9 +18,11 @@ import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
+  MinusCircleOutlined,
 } from '@ant-design/icons';
 import { useProjectStore } from '../stores/projectStore';
 import { useStaffStore } from '../stores/staffStore';
+import { useAuthStore } from '../stores/authStore';
 
 interface Project {
   id: string;
@@ -28,12 +30,10 @@ interface Project {
   themeColor: string;
   managerId?: string;
   location?: string;
+  subProjects?: { name: string; percentage: number }[];
   isActive: boolean;
-  costSharingFrom?: Array<{
-    id?: string;
-    destinationProjectId: string;
-    percentage: number;
-  }>;
+  editCutoffDay?: number;
+  editCutoffNextMonth?: boolean;
 }
 
 const ProjectsPage: React.FC = () => {
@@ -44,6 +44,8 @@ const ProjectsPage: React.FC = () => {
   // Use global stores
   const { projects, addProject, updateProject, deleteProject, fetchProjects, loading } = useProjectStore();
   const { getActiveStaffByProject, fetchStaff } = useStaffStore();
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   // Fetch projects on mount
   useEffect(() => {
@@ -68,6 +70,8 @@ const ProjectsPage: React.FC = () => {
     form.setFieldsValue({
       themeColor: '#3b82f6',
       isActive: true,
+      subProjects: [],
+      ...(isSuperAdmin ? { editCutoffDay: 2, editCutoffNextMonth: true } : {}),
     });
     setIsModalOpen(true);
   };
@@ -77,7 +81,14 @@ const ProjectsPage: React.FC = () => {
     form.setFieldsValue({
       name: project.name,
       location: project.location,
-      costSharingFrom: project.costSharingFrom || [],
+      editCutoffDay: project.editCutoffDay ?? 2,
+      editCutoffNextMonth: project.editCutoffNextMonth ?? true,
+      subProjects: Array.isArray(project.subProjects)
+        ? project.subProjects.map((sp: any) => ({
+            name: sp?.name ?? '',
+            percentage: sp?.percentage ?? 0,
+          }))
+        : [],
     });
     setIsModalOpen(true);
   };
@@ -92,13 +103,26 @@ const ProjectsPage: React.FC = () => {
         : values.themeColor?.toHexString?.() || '#3b82f6';
       
       if (editingProject) {
-        const result = await updateProject(editingProject.id, {
+        const normalizedSubProjects = Array.isArray(values.subProjects)
+          ? values.subProjects
+              .map((sp: any) => ({
+                name: typeof sp?.name === 'string' ? sp.name.trim() : '',
+                percentage: Number(sp?.percentage),
+              }))
+              .filter((sp: any) => sp.name && Number.isFinite(sp.percentage))
+          : [];
+        const payload: any = {
           name: values.name,
           location: values.location,
           themeColor,
           isActive: values.isActive ?? true,
-          costSharingFrom: values.costSharingFrom || [],
-        });
+          subProjects: normalizedSubProjects,
+        };
+        if (isSuperAdmin) {
+          payload.editCutoffDay = values.editCutoffDay ?? 2;
+          payload.editCutoffNextMonth = values.editCutoffNextMonth ?? true;
+        }
+        const result = await updateProject(editingProject.id, payload);
         if (result) {
           message.success('แก้ไขโครงการสำเร็จ');
           setIsModalOpen(false);
@@ -108,13 +132,26 @@ const ProjectsPage: React.FC = () => {
           message.error('ไม่สามารถแก้ไขโครงการได้');
         }
       } else {
-        const result = await addProject({
+        const normalizedSubProjects = Array.isArray(values.subProjects)
+          ? values.subProjects
+              .map((sp: any) => ({
+                name: typeof sp?.name === 'string' ? sp.name.trim() : '',
+                percentage: Number(sp?.percentage),
+              }))
+              .filter((sp: any) => sp.name && Number.isFinite(sp.percentage))
+          : [];
+        const payload: any = {
           name: values.name,
           location: values.location,
           themeColor,
           isActive: values.isActive ?? true,
-          costSharingFrom: values.costSharingFrom || [],
-        });
+          subProjects: normalizedSubProjects,
+        };
+        if (isSuperAdmin) {
+          payload.editCutoffDay = values.editCutoffDay ?? 2;
+          payload.editCutoffNextMonth = values.editCutoffNextMonth ?? true;
+        }
+        const result = await addProject(payload);
         if (result) {
           message.success('สร้างโครงการสำเร็จ');
           setIsModalOpen(false);
@@ -170,30 +207,32 @@ const ProjectsPage: React.FC = () => {
       render: (text: string) => text || '-',
     },
     {
+      title: 'โครงการย่อย',
+      key: 'subProjects',
+      render: (_: any, record: any) => {
+        if (!record.subProjects || record.subProjects.length === 0) {
+          return <span style={{ color: '#999' }}>-</span>;
+        }
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {record.subProjects.map((sp: any, index: number) => (
+              <div key={index} style={{ fontSize: '12px', color: '#333' }}>
+                <div>📍 {sp.name}</div>
+                <div style={{ color: '#666', fontSize: '11px', marginLeft: '8px' }}>
+                  {sp.percentage}%
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      },
+    },
+    {
       title: 'จำนวนพนักงาน',
       key: 'staffCount',
       render: (_: any, record: any) => (
         <Tag color="blue">{getStaffCount(record.id)} คน</Tag>
       ),
-    },
-    {
-      title: 'Cost Sharing',
-      key: 'costSharingFrom',
-      render: (_: any, record: any) => {
-        if (!record.costSharingFrom || record.costSharingFrom.length === 0) return '-';
-        return (
-          <Space direction="vertical" size="small">
-            {record.costSharingFrom.map((cs: any, idx: number) => {
-              const destProject = projects.find((p) => p.id === cs.destinationProjectId);
-              return (
-                <Tag key={idx} color="orange">
-                  {destProject?.name || 'N/A'}: {cs.percentage}%
-                </Tag>
-              );
-            })}
-          </Space>
-        );
-      },
     },
     {
       title: 'สถานะ',
@@ -203,6 +242,13 @@ const ProjectsPage: React.FC = () => {
           {record.isActive ? 'ใช้งาน' : 'ปิด'}
         </Tag>
       ),
+    },
+    {
+      title: 'แก้ไขได้ถึง',
+      dataIndex: 'editCutoffDay',
+      key: 'editCutoffDay',
+      render: (_: any, record: any) =>
+        `วันที่ ${record.editCutoffDay || 2} ของ${record.editCutoffNextMonth === false ? 'เดือนเดียวกัน' : 'เดือนถัดไป'}`,
     },
     {
       title: 'จัดการ',
@@ -266,65 +312,88 @@ const ProjectsPage: React.FC = () => {
             <Input placeholder="เช่น กรุงเทพฯ" />
           </Form.Item>
 
-          <Form.Item label="Cost Sharing (แบ่งค่าใช้จ่ายให้โครงการอื่น)">
-            <p style={{ fontSize: '12px', color: '#666', marginBottom: 8 }}>
-              กำหนดว่าโครงการนี้จะแบ่งค่าใช้จ่าย (เงินเดือนพนักงาน) ให้กับโครงการอื่นกี่ %
-            </p>
-            <Form.List name="costSharingFrom">
+          <Form.Item
+            label="โครงการย่อย (สำหรับแสดงในรายงาน)"
+            style={{ marginBottom: 8 }}
+          >
+            <Form.List name="subProjects">
               {(fields, { add, remove }) => (
-                <>
+                <div>
                   {fields.map(({ key, name, ...restField }) => (
-                    <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                    <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
                       <Form.Item
                         {...restField}
-                        name={[name, 'destinationProjectId']}
-                        rules={[{ required: true, message: 'เลือกโครงการ' }]}
-                        style={{ marginBottom: 0 }}
+                        name={[name, 'name']}
+                        rules={[{ required: true, message: 'กรุณาใส่ชื่อโครงการย่อย' }]}
                       >
-                        <Select
-                          placeholder="เลือกโครงการปลายทาง"
-                          style={{ width: 280 }}
-                        >
-                          {projects
-                            .filter((p) => p.id !== editingProject?.id)
-                            .map((p) => (
-                              <Select.Option key={p.id} value={p.id}>
-                                {p.name}
-                              </Select.Option>
-                            ))}
-                        </Select>
+                        <Input placeholder="ชื่อโครงการย่อย" />
                       </Form.Item>
                       <Form.Item
                         {...restField}
                         name={[name, 'percentage']}
                         rules={[
-                          { required: true, message: 'กรอก %' },
-                          { type: 'number', min: 0, max: 100, message: '0-100' },
+                          { required: true, message: 'กรุณาใส่ %' },
+                          { type: 'number', min: 0, max: 100, message: 'กรุณาใส่ 0-100' },
                         ]}
-                        style={{ marginBottom: 0 }}
                       >
                         <InputNumber
-                          placeholder="%"
                           min={0}
                           max={100}
-                          style={{ width: 100 }}
-                          addonAfter="%"
+                          style={{ width: 140 }}
+                          formatter={(value) => `${value ?? ''}%`}
+                          parser={(value) => Number((value || '').toString().replace('%', ''))}
                         />
                       </Form.Item>
-                      <Button danger onClick={() => remove(name)}>
-                        ลบ
-                      </Button>
+                      <Button
+                        type="text"
+                        danger
+                        icon={<MinusCircleOutlined />}
+                        onClick={() => remove(name)}
+                      />
                     </Space>
                   ))}
-                  <Form.Item style={{ marginBottom: 0 }}>
-                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
-                      เพิ่มการแชร์ค่าใช้จ่าย
-                    </Button>
-                  </Form.Item>
-                </>
+                  <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />}>
+                    เพิ่มโครงการย่อย
+                  </Button>
+                </div>
               )}
             </Form.List>
           </Form.Item>
+
+
+          <Form.Item
+            label={
+              <span>
+                วันสุดท้ายที่แก้ไขตารางเวร
+                <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>
+                  หมายเหตุ: หากต้องการกำหนดเป็นสิ้นเดือน ให้ใส่วันที่ 31
+                </span>
+              </span>
+            }
+            name="editCutoffDay"
+            rules={
+              isSuperAdmin
+                ? [
+                    { required: true, message: 'กรุณาระบุวันสุดท้ายที่แก้ไขได้' },
+                    { type: 'number', min: 1, max: 31, message: 'ระบุได้ 1-31' },
+                  ]
+                : []
+            }
+          >
+            <InputNumber min={1} max={31} style={{ width: '100%' }} disabled={!isSuperAdmin} />
+          </Form.Item>
+
+          <Form.Item
+            label="อ้างอิงเดือน"
+            name="editCutoffNextMonth"
+            rules={isSuperAdmin ? [{ required: true, message: 'กรุณาเลือกอ้างอิงเดือน' }] : []}
+          >
+            <Select disabled={!isSuperAdmin}>
+              <Select.Option value={true}>เดือนถัดไป</Select.Option>
+              <Select.Option value={false}>เดือนเดียวกัน</Select.Option>
+            </Select>
+          </Form.Item>
+
         </Form>
       </Modal>
     </div>

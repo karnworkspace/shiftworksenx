@@ -688,22 +688,6 @@ export const mockDeductionReport = {
   details: mockMonthlyAttendance,
 };
 
-export const mockCostSharingReport = {
-  sourceProject: {
-    id: 'proj-1',
-    name: 'นิยม โมโน รามคำแหง',
-  },
-  year: 2569,
-  month: 1,
-  totalCost: 55420,
-  sharings: [] as Array<{
-    destinationProject: { id: string; name: string };
-    percentage: number;
-    amount: number;
-  }>,
-  remainingCost: 55420,
-  remainingPercentage: 100,
-};
 
 // ข้อมูลสำหรับ Dashboard
 export const mockDashboardStats = {

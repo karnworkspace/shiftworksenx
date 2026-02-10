@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import { AuthRequest } from '../types/auth.types';
 import { prisma } from '../lib/prisma';
+import { ensureProjectAccess } from '../utils/projectAccess';
+import { isEditWindowOpen } from '../utils/rosterEditWindow';
 
 /**
  * Get roster for a specific project and month
@@ -13,6 +15,10 @@ export const getRoster = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({
         error: 'Project ID, year, and month are required',
       });
+    }
+
+    if (!(await ensureProjectAccess(req, projectId as string))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     const yearNum = parseInt(year as string);
@@ -80,6 +86,7 @@ export const getRoster = async (req: AuthRequest, res: Response) => {
         isActive: true,
       },
       orderBy: [
+        { displayOrder: 'asc' },
         { staffType: 'asc' },
         { createdAt: 'asc' },
       ],
@@ -101,10 +108,12 @@ export const getRoster = async (req: AuthRequest, res: Response) => {
         days: {},
       };
 
-      // Default each day to staff's defaultShift or OFF
+      // Default each day to staff's defaultShift or OFF (respect weekly off day)
       for (let day = 1; day <= daysInMonth; day++) {
+        const dayOfWeek = new Date(yearNum, monthNum - 1, day).getDay();
+        const isWeeklyOff = staff.weeklyOffDay !== null && staff.weeklyOffDay !== undefined && dayOfWeek === staff.weeklyOffDay;
         rosterMatrix[staff.id].days[day] = {
-          shiftCode: staff.defaultShift || 'OFF',
+          shiftCode: isWeeklyOff ? 'OFF' : (staff.defaultShift || 'OFF'),
         };
       }
     });
@@ -170,10 +179,33 @@ export const updateRosterEntry = async (req: AuthRequest, res: Response) => {
     // Check if roster exists
     const roster = await prisma.roster.findUnique({
       where: { id: rosterId },
+      include: {
+        project: {
+          select: {
+            id: true,
+            editCutoffDay: true,
+            editCutoffNextMonth: true,
+          },
+        },
+      },
     });
 
     if (!roster) {
       return res.status(404).json({ error: 'Roster not found' });
+    }
+
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'เฉพาะ Super Admin เท่านั้นที่แก้ไขได้' });
+    }
+
+    const cutoffDay = roster.project.editCutoffDay;
+    const useNextMonth = roster.project.editCutoffNextMonth;
+    if (!isEditWindowOpen(roster.year, roster.month, cutoffDay, useNextMonth)) {
+      return res.status(403).json({ error: 'เกินกำหนดการแก้ไขข้อมูล กรุณาติดต่อเจ้าหน้าที่' });
+    }
+
+    if (!(await ensureProjectAccess(req, roster.projectId))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     // Check if staff exists and is in the same project
@@ -222,7 +254,9 @@ export const updateRosterEntry = async (req: AuthRequest, res: Response) => {
  */
 export const batchUpdateRosterEntries = async (req: AuthRequest, res: Response) => {
   try {
-    const { rosterId, entries } = req.body;
+    const { rosterId } = req.body;
+    // Accept both 'entries' and 'updates' field names for compatibility
+    const entries = req.body.entries || req.body.updates;
 
     if (!rosterId || !Array.isArray(entries) || entries.length === 0) {
       return res.status(400).json({
@@ -233,10 +267,33 @@ export const batchUpdateRosterEntries = async (req: AuthRequest, res: Response) 
     // Check if roster exists
     const roster = await prisma.roster.findUnique({
       where: { id: rosterId },
+      include: {
+        project: {
+          select: {
+            id: true,
+            editCutoffDay: true,
+            editCutoffNextMonth: true,
+          },
+        },
+      },
     });
 
     if (!roster) {
       return res.status(404).json({ error: 'Roster not found' });
+    }
+
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'เฉพาะ Super Admin เท่านั้นที่แก้ไขได้' });
+    }
+
+    const cutoffDay = roster.project.editCutoffDay;
+    const useNextMonth = roster.project.editCutoffNextMonth;
+    if (!isEditWindowOpen(roster.year, roster.month, cutoffDay, useNextMonth)) {
+      return res.status(403).json({ error: 'เกินกำหนดการแก้ไขข้อมูล กรุณาติดต่อเจ้าหน้าที่' });
+    }
+
+    if (!(await ensureProjectAccess(req, roster.projectId))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     // Get valid shift codes from database
@@ -294,6 +351,127 @@ export const batchUpdateRosterEntries = async (req: AuthRequest, res: Response) 
 };
 
 /**
+ * Import roster entries for a project/month (replace all entries)
+ */
+export const importRoster = async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId, year, month, entries } = req.body;
+
+    if (!projectId || !year || !month || !Array.isArray(entries)) {
+      return res.status(400).json({ error: 'projectId, year, month, and entries are required' });
+    }
+
+    const yearNum = parseInt(String(year), 10);
+    const monthNum = parseInt(String(month), 10);
+    if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({ error: 'Invalid year or month' });
+    }
+
+    if (!req.user || req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'เฉพาะ Super Admin เท่านั้นที่แก้ไขได้' });
+    }
+
+    if (!(await ensureProjectAccess(req, projectId))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, editCutoffDay: true, editCutoffNextMonth: true },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const cutoffDay = project.editCutoffDay;
+    const useNextMonth = project.editCutoffNextMonth;
+    if (!isEditWindowOpen(yearNum, monthNum, cutoffDay, useNextMonth)) {
+      return res.status(403).json({ error: 'เกินกำหนดการแก้ไขข้อมูล กรุณาติดต่อเจ้าหน้าที่' });
+    }
+
+    const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
+
+    if (entries.length === 0) {
+      return res.status(400).json({ error: 'entries must not be empty' });
+    }
+
+    const validShiftCodes = new Set(
+      (await prisma.shiftType.findMany({ select: { code: true } })).map((s) => s.code)
+    );
+
+    const staffIds = Array.from(
+      new Set(entries.map((entry: any) => String(entry.staffId)))
+    );
+    const staffRecords = await prisma.staff.findMany({
+      where: { id: { in: staffIds }, projectId },
+      select: { id: true },
+    });
+    if (staffRecords.length !== staffIds.length) {
+      return res.status(400).json({ error: 'Some staff do not belong to this project' });
+    }
+
+    const entryKeySet = new Set<string>();
+    for (const entry of entries) {
+      const staffId = String(entry.staffId || '');
+      const dayNum = parseInt(String(entry.day), 10);
+      const shiftCode = String(entry.shiftCode || '').trim();
+
+      if (!staffId || !shiftCode || isNaN(dayNum)) {
+        return res.status(400).json({ error: 'Each entry must have staffId, day, and shiftCode' });
+      }
+      if (dayNum < 1 || dayNum > daysInMonth) {
+        return res.status(400).json({ error: `Invalid day ${dayNum}` });
+      }
+      if (!validShiftCodes.has(shiftCode)) {
+        return res.status(400).json({ error: `Invalid shift code: ${shiftCode}` });
+      }
+      const key = `${staffId}-${dayNum}`;
+      if (entryKeySet.has(key)) {
+        return res.status(400).json({ error: `Duplicate entry for staff ${staffId} day ${dayNum}` });
+      }
+      entryKeySet.add(key);
+    }
+
+    let roster = await prisma.roster.findUnique({
+      where: {
+        projectId_year_month: {
+          projectId,
+          year: yearNum,
+          month: monthNum,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!roster) {
+      roster = await prisma.roster.create({
+        data: { projectId, year: yearNum, month: monthNum },
+        select: { id: true },
+      });
+    }
+
+    await prisma.$transaction([
+      prisma.rosterEntry.deleteMany({ where: { rosterId: roster.id } }),
+      prisma.rosterEntry.createMany({
+        data: entries.map((entry: any) => ({
+          rosterId: roster!.id,
+          staffId: String(entry.staffId),
+          day: parseInt(String(entry.day), 10),
+          shiftCode: String(entry.shiftCode).trim(),
+          notes: entry.notes ? String(entry.notes) : null,
+        })),
+      }),
+    ]);
+
+    return res.json({ success: true, rosterId: roster.id, count: entries.length });
+  } catch (error) {
+    console.error('Import roster error:', error);
+    return res.status(500).json({ error: 'Failed to import roster' });
+  }
+};
+
+/**
  * Get roster statistics for a specific day
  */
 export const getRosterDayStats = async (req: AuthRequest, res: Response) => {
@@ -304,6 +482,19 @@ export const getRosterDayStats = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Roster ID and day are required' });
     }
 
+    const roster = await prisma.roster.findUnique({
+      where: { id: rosterId as string },
+      select: { id: true, projectId: true },
+    });
+
+    if (!roster) {
+      return res.status(404).json({ error: 'Roster not found' });
+    }
+
+    if (!(await ensureProjectAccess(req, roster.projectId))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
+    }
+
     const dayNum = parseInt(day as string);
     if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) {
       return res.status(400).json({ error: 'Invalid day' });
@@ -311,7 +502,7 @@ export const getRosterDayStats = async (req: AuthRequest, res: Response) => {
 
     const entries = await prisma.rosterEntry.findMany({
       where: {
-        rosterId: rosterId as string,
+        rosterId: roster.id,
         day: dayNum,
       },
       include: {
@@ -386,6 +577,37 @@ export const deleteRosterEntry = async (req: AuthRequest, res: Response) => {
 
     if (!entry) {
       return res.status(404).json({ error: 'Roster entry not found' });
+    }
+
+    const roster = await prisma.roster.findUnique({
+      where: { id: entry.rosterId },
+      include: {
+        project: {
+          select: {
+            id: true,
+            editCutoffDay: true,
+            editCutoffNextMonth: true,
+          },
+        },
+      },
+    });
+
+    if (!roster) {
+      return res.status(404).json({ error: 'Roster not found' });
+    }
+
+    if (req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'เฉพาะ Super Admin เท่านั้นที่แก้ไขได้' });
+    }
+
+    const cutoffDay = roster.project.editCutoffDay;
+    const useNextMonth = roster.project.editCutoffNextMonth;
+    if (!isEditWindowOpen(roster.year, roster.month, cutoffDay, useNextMonth)) {
+      return res.status(403).json({ error: 'เกินกำหนดการแก้ไขข้อมูล กรุณาติดต่อเจ้าหน้าที่' });
+    }
+
+    if (!(await ensureProjectAccess(req, roster.projectId))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     await prisma.rosterEntry.delete({

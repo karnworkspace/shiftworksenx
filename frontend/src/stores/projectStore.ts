@@ -5,6 +5,7 @@ interface ProjectStore {
   projects: Project[];
   loading: boolean;
   error: string | null;
+  selectedProjectId: string;
   
   // API methods
   fetchProjects: () => Promise<void>;
@@ -16,6 +17,7 @@ interface ProjectStore {
   getProject: (id: string) => Project | undefined;
   
   // Local state
+  setSelectedProjectId: (id: string) => void;
   setProjects: (projects: Project[]) => void;
   clearError: () => void;
 }
@@ -24,12 +26,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   projects: [],
   loading: false,
   error: null,
+  selectedProjectId: '',
 
   fetchProjects: async () => {
     set({ loading: true, error: null });
     try {
       const projects = await projectService.getAll();
-      set({ projects, loading: false });
+      const currentSelected = get().selectedProjectId;
+      const hasSelected = currentSelected && projects.some((p) => p.id === currentSelected);
+      const nextSelected = hasSelected ? currentSelected : (projects[0]?.id ?? '');
+      set({ projects, loading: false, selectedProjectId: nextSelected });
     } catch (error: any) {
       set({ error: error.response?.data?.error || 'Failed to fetch projects', loading: false });
     }
@@ -84,6 +90,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     return get().projects.find((p) => p.id === id);
   },
 
+  setSelectedProjectId: (id: string) => set({ selectedProjectId: id }),
   setProjects: (projects: Project[]) => set({ projects }),
   
   clearError: () => set({ error: null }),

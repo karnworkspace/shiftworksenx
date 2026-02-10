@@ -5,6 +5,9 @@ import {
   getStaffById,
   createStaff,
   updateStaff,
+  reorderStaff,
+  applyStaffDefaultShift,
+  applyStaffWeeklyOffDay,
   toggleStaffStatus,
   deleteStaff,
 } from '../controllers/staff.controller';
@@ -23,6 +26,15 @@ router.post('/', createStaff);
 
 // PUT /api/staff/:id
 router.put('/:id', updateStaff);
+
+// POST /api/staff/reorder
+router.post('/reorder', reorderStaff);
+
+// POST /api/staff/:id/default-shift
+router.post('/:id/default-shift', applyStaffDefaultShift);
+
+// POST /api/staff/:id/weekly-off-day
+router.post('/:id/weekly-off-day', applyStaffWeeklyOffDay);
 
 // PATCH /api/staff/:id/toggle-status
 router.patch('/:id/toggle-status', toggleStaffStatus);

@@ -52,6 +52,9 @@ create table if not exists public.projects (
   theme_color text not null default '#3b82f6',
   description text,
   is_active boolean not null default true,
+  edit_cutoff_day int not null default 2,
+  edit_cutoff_next_month boolean not null default true,
+  sub_projects jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   manager_id uuid,
@@ -64,6 +67,54 @@ do $$ begin
     execute 'create index if not exists projects_manager_id_idx on public.projects("managerId")';
   end if;
 end $$;
+do $$ begin
+  if not exists(
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='projects' and column_name='edit_cutoff_day'
+  ) then
+    begin
+      execute 'alter table public.projects add column edit_cutoff_day int not null default 2';
+    exception when duplicate_column then null; end;
+  end if;
+end $$;
+do $$ begin
+  if not exists(
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='projects' and column_name='edit_cutoff_next_month'
+  ) then
+    begin
+      execute 'alter table public.projects add column edit_cutoff_next_month boolean not null default true';
+    exception when duplicate_column then null; end;
+  end if;
+end $$;
+do $$ begin
+  if not exists(
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='projects' and column_name='sub_projects'
+  ) then
+    begin
+      execute 'alter table public.projects add column sub_projects jsonb';
+    exception when duplicate_column then null; end;
+  end if;
+end $$;
+
+-- positions (staff roles with default wage)
+create table if not exists public.positions (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  default_wage numeric(12,2) not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- user_project_access (user ↔ project permissions)
+create table if not exists public.user_project_access (
+  user_id uuid not null,
+  project_id uuid not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, project_id)
+);
+create index if not exists user_project_access_project_id_idx on public.user_project_access(project_id);
 
 -- Ensure projects has a primary key on id if table existed previously without one
 do $$ begin
@@ -109,13 +160,17 @@ create table if not exists public.staff (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   position text not null,
+  position_id uuid,
   phone text,
   wage_per_day numeric(12,2) not null,
+  wage_override boolean not null default false,
   staff_type "StaffType" not null default 'REGULAR',
   code text not null default 'Code 1',
+  display_order int,
   is_active boolean not null default true,
   availability "StaffAvailability" not null default 'AVAILABLE',
   default_shift text default 'OFF',
+  weekly_off_day int,
   remark text,
   project_id uuid not null,
   created_at timestamptz not null default now(),
@@ -123,10 +178,42 @@ create table if not exists public.staff (
   -- foreign key to projects will be added conditionally below (type-compatibility checked)
 );
 do $$ begin
+  if not exists(
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='staff' and column_name='position_id'
+  ) then
+    begin
+      execute 'alter table public.staff add column position_id uuid';
+    exception when duplicate_column then null; end;
+  end if;
+end $$;
+do $$ begin
+  if not exists(
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='staff' and column_name='wage_override'
+  ) then
+    begin
+      execute 'alter table public.staff add column wage_override boolean not null default false';
+    exception when duplicate_column then null; end;
+  end if;
+end $$;
+do $$ begin
   if exists(select 1 from information_schema.columns where table_schema='public' and table_name='staff' and column_name='project_id') then
     execute 'create index if not exists staff_project_id_idx on public.staff(project_id)';
   elsif exists(select 1 from information_schema.columns where table_schema='public' and table_name='staff' and column_name='"projectId"') then
     execute 'create index if not exists staff_project_id_idx on public.staff("projectId")';
+  end if;
+  if exists(select 1 from information_schema.columns where table_schema='public' and table_name='staff' and column_name='wage_override') then
+    execute 'create index if not exists staff_wage_override_idx on public.staff(wage_override)';
+  end if;
+  if not exists(select 1 from information_schema.columns where table_schema='public' and table_name='staff' and column_name='weekly_off_day') then
+    execute 'alter table public.staff add column weekly_off_day int';
+  end if;
+  if not exists(select 1 from information_schema.columns where table_schema='public' and table_name='staff' and column_name='display_order') then
+    execute 'alter table public.staff add column display_order int';
+  end if;
+  if exists(select 1 from information_schema.columns where table_schema='public' and table_name='staff' and column_name='position_id') then
+    execute 'create index if not exists staff_position_id_idx on public.staff(position_id)';
   end if;
   if exists(select 1 from information_schema.columns where table_schema='public' and table_name='staff' and column_name='is_active') then
     execute 'create index if not exists staff_is_active_idx on public.staff(is_active)';
@@ -143,10 +230,21 @@ create table if not exists public.shift_types (
   start_time text,
   end_time text,
   color text not null default '#3b82f6',
+  text_color text,
   is_work_shift boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+do $$ begin
+  if not exists(
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='shift_types' and column_name='text_color'
+  ) then
+    begin
+      execute 'alter table public.shift_types add column text_color text';
+    exception when duplicate_column then null; end;
+  end if;
+end $$;
 
 -- rosters
 create table if not exists public.rosters (
@@ -240,6 +338,27 @@ do $$ begin
       execute 'alter table public.staff add constraint staff_project_fkey foreign key (project_id) references public.projects(id) on delete cascade';
     exception when duplicate_object then null; end;
   end if;
+  -- staff -> positions
+  if (select data_type from information_schema.columns where table_schema='public' and table_name='staff' and column_name='position_id') = 'uuid'
+     and (select data_type from information_schema.columns where table_schema='public' and table_name='positions' and column_name='id') = 'uuid' then
+    begin
+      execute 'alter table public.staff add constraint staff_position_fkey foreign key (position_id) references public.positions(id)';
+    exception when duplicate_object then null; end;
+  end if;
+
+  -- user_project_access -> users/projects
+  if (select data_type from information_schema.columns where table_schema='public' and table_name='user_project_access' and column_name='user_id') = 'uuid'
+     and (select data_type from information_schema.columns where table_schema='public' and table_name='users' and column_name='id') = 'uuid' then
+    begin
+      execute 'alter table public.user_project_access add constraint user_project_access_user_fkey foreign key (user_id) references public.users(id) on delete cascade';
+    exception when duplicate_object then null; end;
+  end if;
+  if (select data_type from information_schema.columns where table_schema='public' and table_name='user_project_access' and column_name='project_id') = 'uuid'
+     and (select data_type from information_schema.columns where table_schema='public' and table_name='projects' and column_name='id') = 'uuid' then
+    begin
+      execute 'alter table public.user_project_access add constraint user_project_access_project_fkey foreign key (project_id) references public.projects(id) on delete cascade';
+    exception when duplicate_object then null; end;
+  end if;
 
   -- rosters -> projects
   if (select data_type from information_schema.columns where table_schema='public' and table_name='rosters' and column_name='project_id') = 'uuid'
@@ -316,6 +435,12 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   create trigger shift_types_set_updated_at
   before update on public.shift_types
+  for each row execute function public.set_updated_at();
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create trigger positions_set_updated_at
+  before update on public.positions
   for each row execute function public.set_updated_at();
 exception when duplicate_object then null; end $$;
 
