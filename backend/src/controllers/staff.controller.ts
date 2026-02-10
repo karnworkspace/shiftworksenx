@@ -416,7 +416,7 @@ export const applyStaffDefaultShift = async (req: AuthRequest, res: Response) =>
           select: { day: true },
         });
         const existingDays = new Set(existingEntries.map((entry) => entry.day));
-        const createData = [];
+        const createData: { rosterId: string; staffId: string; day: number; shiftCode: string }[] = [];
 
         for (let day = 1; day <= daysInMonth; day++) {
           if (!existingDays.has(day)) {
@@ -582,7 +582,7 @@ export const applyStaffWeeklyOffDay = async (req: AuthRequest, res: Response) =>
           select: { day: true },
         });
         const existingDays = new Set(existingEntries.map((entry) => entry.day));
-        const createData = [];
+        const createData: { rosterId: string; staffId: string; day: number; shiftCode: string }[] = [];
 
         for (let day = 1; day <= daysInMonth; day++) {
           if (!existingDays.has(day)) {

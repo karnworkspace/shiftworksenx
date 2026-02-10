@@ -214,7 +214,7 @@ export const getFinancialOverview = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    const projectSummaries = [];
+    const projectSummaries: { projectId: string; projectName: string; staffCount: number; totalCost: number }[] = [];
 
     for (const project of projects) {
       const roster = await prisma.roster.findUnique({
