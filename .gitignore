@@ -22,9 +22,6 @@ backend/node_modules/
 .DS_Store
 ._*
 *.pem
-*.jpg
-*.jpeg
-*.png
 .vscode/
 
 # debug
