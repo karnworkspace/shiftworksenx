@@ -25,9 +25,8 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userService, User, CreateUserData, UpdateUserData } from '../services/user.service';
-import { projectService, Project } from '../services/project.service';
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 const roleOptions = [
     { value: 'SUPER_ADMIN', label: 'Super Admin', color: 'red' },
@@ -68,13 +67,6 @@ export default function UsersPage() {
     const [form] = Form.useForm();
     const [passwordForm] = Form.useForm();
     const selectedRole = Form.useWatch('role', form);
-    const selectedProjectIds = Form.useWatch('projectIds', form) || [];
-
-    // Fetch projects for access assignment
-    const { data: projects = [], isLoading: isProjectsLoading } = useQuery({
-        queryKey: ['projects'],
-        queryFn: projectService.getAll,
-    });
 
     // Fetch users
     const { data: users = [], isLoading } = useQuery({
@@ -142,14 +134,12 @@ export default function UsersPage() {
                 name: user.name,
                 role: user.role,
                 permissions: user.permissions || [],
-                projectIds: user.projectAccesses?.map((pa) => pa.projectId) || [],
             });
         } else {
             setEditingUser(null);
             form.resetFields();
             form.setFieldsValue({
                 permissions: ['reports', 'roster', 'staff', 'projects'],
-                projectIds: [],
             });
         }
         setIsModalOpen(true);
@@ -181,7 +171,6 @@ export default function UsersPage() {
                     name: values.name,
                     role: values.role,
                     permissions: values.permissions,
-                    projectIds: values.projectIds,
                 },
             });
         } else {
@@ -191,7 +180,6 @@ export default function UsersPage() {
                 name: values.name,
                 role: values.role,
                 permissions: values.permissions,
-                projectIds: values.projectIds,
             });
         }
     };
@@ -204,12 +192,6 @@ export default function UsersPage() {
             });
         }
     };
-
-    const allProjectIds = projects.map((project) => project.id);
-    const isAllSelected =
-        allProjectIds.length > 0 && selectedProjectIds.length === allProjectIds.length;
-    const isIndeterminate =
-        selectedProjectIds.length > 0 && selectedProjectIds.length < allProjectIds.length;
 
     const columns = [
         {
@@ -250,29 +232,6 @@ export default function UsersPage() {
                 ) : (
                     <span style={{ color: '#999' }}>-</span>
                 ),
-        },
-        {
-            title: 'โครงการที่เข้าถึงได้',
-            dataIndex: 'projectAccesses',
-            key: 'projectAccesses',
-            render: (_: any, record: User) => {
-                if (record.role === 'SUPER_ADMIN') {
-                    return <Tag color="gold">ทั้งหมด</Tag>;
-                }
-                const accesses = record.projectAccesses || [];
-                if (accesses.length === 0) {
-                    return <span style={{ color: '#999' }}>-</span>;
-                }
-                return (
-                    <Space wrap>
-                        {accesses.map((access) => (
-                            <Tag key={access.projectId} color="green">
-                                {access.project?.name || access.projectId}
-                            </Tag>
-                        ))}
-                    </Space>
-                );
-            },
         },
         {
             title: 'วันที่สร้าง',
@@ -417,65 +376,6 @@ export default function UsersPage() {
                                 ))}
                             </Row>
                         </Checkbox.Group>
-                    </Form.Item>
-
-                    <Form.Item label="โครงการที่เข้าถึงได้" required>
-                        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <Checkbox
-                                checked={isAllSelected}
-                                disabled={selectedRole === 'SUPER_ADMIN' || isProjectsLoading || projects.length === 0}
-                                onChange={(e) =>
-                                    form.setFieldsValue({
-                                        projectIds: e.target.checked ? allProjectIds : [],
-                                    })
-                                }
-                            >
-                                เลือกทั้งหมด
-                            </Checkbox>
-                            {selectedProjectIds.length > 0 && !isAllSelected && (
-                                <Text type="secondary">
-                                    เลือกแล้ว {selectedProjectIds.length}/{allProjectIds.length}
-                                </Text>
-                            )}
-                            {selectedRole === 'SUPER_ADMIN' && (
-                                <Text type="secondary">SUPER_ADMIN เห็นทุกโครงการโดยอัตโนมัติ</Text>
-                            )}
-                        </div>
-                        <Form.Item
-                            name="projectIds"
-                            rules={[
-                                {
-                                    validator: (_, value) => {
-                                        if (selectedRole === 'SUPER_ADMIN') return Promise.resolve();
-                                        if (!value || value.length === 0) {
-                                            return Promise.reject(new Error('กรุณาเลือกอย่างน้อย 1 โครงการ'));
-                                        }
-                                        return Promise.resolve();
-                                    },
-                                },
-                            ]}
-                            noStyle
-                        >
-                            <Checkbox.Group
-                                style={{ width: '100%' }}
-                                disabled={selectedRole === 'SUPER_ADMIN' || isProjectsLoading || projects.length === 0}
-                            >
-                                <Row gutter={[16, 8]}>
-                                    {projects.map((project: Project) => (
-                                        <Col span={12} key={project.id}>
-                                            <Checkbox value={project.id}>{project.name}</Checkbox>
-                                        </Col>
-                                    ))}
-                                </Row>
-                            </Checkbox.Group>
-                        </Form.Item>
-                        <Form.Item shouldUpdate noStyle>
-                            {({ getFieldError }) => (
-                                <div style={{ marginTop: 8 }}>
-                                    <Form.ErrorList errors={getFieldError('projectIds')} />
-                                </div>
-                            )}
-                        </Form.Item>
                     </Form.Item>
 
                     <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>

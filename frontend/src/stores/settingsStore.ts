@@ -8,7 +8,6 @@ interface ShiftType {
   startTime: string | null;
   endTime: string | null;
   color: string;
-  textColor?: string | null;
   isWorkShift: boolean;
   isSystemDefault?: boolean;
 }

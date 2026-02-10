@@ -10,7 +10,6 @@ export interface Staff {
   wagePerDay: number;
   wageOverride?: boolean;
   staffType: 'REGULAR' | 'SPARE';
-  availability: 'AVAILABLE' | 'TEMPORARILY_OFF' | 'ON_LEAVE';
   displayOrder?: number | null;
   isActive: boolean;
   projectId: string;
@@ -53,7 +52,6 @@ export interface UpdateStaffData {
   weeklyOffDay?: number | null;
   displayOrder?: number;
   isActive?: boolean;
-  availability?: string;
   remark?: string;
 }
 

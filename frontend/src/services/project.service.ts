@@ -7,7 +7,7 @@ export interface Project {
   themeColor: string;
   description?: string;
   managerId?: string;
-  responsiblePerson?: string;
+  manager?: { id: string; name: string; email: string };
   subProjects?: { name: string; percentage: number }[];
   isActive: boolean;
   editCutoffDay?: number;

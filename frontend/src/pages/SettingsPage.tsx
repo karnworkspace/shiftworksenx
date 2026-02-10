@@ -39,7 +39,6 @@ interface ShiftType {
   startTime: string | null;
   endTime: string | null;
   color: string;
-  textColor?: string | null;
   isWorkShift: boolean;
   isSystemDefault?: boolean;
 }
@@ -104,7 +103,6 @@ const SettingsPage: React.FC = () => {
     shiftForm.setFieldsValue({
       color: '#1890ff',
       isWorkShift: true,
-      textColor: '#fff',
     });
     setIsShiftModalOpen(true);
   };
@@ -118,7 +116,6 @@ const SettingsPage: React.FC = () => {
       endTime: shift.endTime ? dayjs(shift.endTime, 'HH:mm') : null,
       color: shift.color,
       isWorkShift: shift.isWorkShift,
-      textColor: shift.textColor || (shift.isWorkShift ? '#fff' : '#000'),
     });
     setIsShiftModalOpen(true);
   };
@@ -137,7 +134,6 @@ const SettingsPage: React.FC = () => {
         startTime: values.startTime ? values.startTime.format('HH:mm') : null,
         endTime: values.endTime ? values.endTime.format('HH:mm') : null,
         color,
-        textColor: values.textColor || (values.isWorkShift ? '#fff' : '#000'),
         isWorkShift: values.isWorkShift ?? true,
       };
 
@@ -252,7 +248,7 @@ const SettingsPage: React.FC = () => {
         <Tag
           style={{
             backgroundColor: record.color,
-            color: record.textColor ?? (record.isWorkShift ? '#fff' : '#000'),
+            color: record.isWorkShift ? '#fff' : '#000',
             fontWeight: 'bold',
           }}
         >
@@ -506,18 +502,6 @@ const SettingsPage: React.FC = () => {
                 valuePropName="checked"
               >
                 <Switch checkedChildren="ใช่" unCheckedChildren="ไม่" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item label="สีตัวอักษร" name="textColor">
-                <Select
-                  options={[
-                    { value: '#fff', label: 'ขาว' },
-                    { value: '#000', label: 'ดำ' },
-                  ]}
-                />
               </Form.Item>
             </Col>
           </Row>

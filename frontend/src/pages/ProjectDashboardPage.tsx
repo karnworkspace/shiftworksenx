@@ -50,7 +50,7 @@ const ProjectDashboardPage: React.FC = () => {
       project.location?.toLowerCase().includes(searchText.toLowerCase()) ||
       false;
     const matchResponsible =
-      project.responsiblePerson
+      project.manager?.name
         ?.toLowerCase()
         .includes(searchResponsible.toLowerCase()) || false;
 
@@ -169,8 +169,8 @@ const ProjectDashboardPage: React.FC = () => {
                         <UserOutlined
                           style={{ marginRight: '8px', color: '#999' }}
                         />
-                        <Text>
-                          <Text type="secondary">คุณสมชาย มุ่งเป็น</Text>
+                        <Text type="secondary">
+                          {project.manager?.name || '-'}
                         </Text>
                       </div>
 

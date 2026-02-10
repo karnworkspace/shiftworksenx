@@ -35,7 +35,6 @@ interface Staff {
   phone?: string;
   wagePerDay: number;
   displayOrder?: number | null;
-  availability: string;
   isActive: boolean;
   projectId: string;
   defaultShift?: string;

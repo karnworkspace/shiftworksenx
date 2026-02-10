@@ -60,11 +60,8 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
  */
 export const createUser = async (req: AuthRequest, res: Response) => {
   try {
-    const { email, password, name, role, permissions, projectIds } = req.body;
+    const { email, password, name, role, permissions } = req.body;
     const nextRole: UserRole = role || UserRole.SITE_MANAGER;
-    const normalizedProjectIds = Array.isArray(projectIds)
-      ? Array.from(new Set(projectIds.filter((id: unknown) => typeof id === 'string')))
-      : [];
 
     // Validation
     if (!email || !password || !name) {
@@ -85,20 +82,6 @@ export const createUser = async (req: AuthRequest, res: Response) => {
     // Validate password length
     if (password.length < 6) {
       return res.status(400).json({ error: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' });
-    }
-
-    if (nextRole !== UserRole.SUPER_ADMIN && normalizedProjectIds.length === 0) {
-      return res.status(400).json({ error: 'กรุณาเลือกอย่างน้อย 1 โครงการ' });
-    }
-
-    if (normalizedProjectIds.length > 0) {
-      const validProjects = await prisma.project.findMany({
-        where: { id: { in: normalizedProjectIds } },
-        select: { id: true },
-      });
-      if (validProjects.length !== normalizedProjectIds.length) {
-        return res.status(400).json({ error: 'พบโครงการที่ไม่ถูกต้อง' });
-      }
     }
 
     // Hash password
@@ -129,7 +112,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { email, name, role, permissions, projectIds } = req.body;
+    const { email, name, role, permissions } = req.body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -153,23 +136,6 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
     }
 
     const nextRole: UserRole = role || existingUser.role;
-    const normalizedProjectIds = Array.isArray(projectIds)
-      ? Array.from(new Set(projectIds.filter((pid: unknown) => typeof pid === 'string')))
-      : undefined;
-
-    if (nextRole !== UserRole.SUPER_ADMIN && normalizedProjectIds !== undefined && normalizedProjectIds.length === 0) {
-      return res.status(400).json({ error: 'กรุณาเลือกอย่างน้อย 1 โครงการ' });
-    }
-
-    if (nextRole !== UserRole.SUPER_ADMIN && normalizedProjectIds && normalizedProjectIds.length > 0) {
-      const validProjects = await prisma.project.findMany({
-        where: { id: { in: normalizedProjectIds } },
-        select: { id: true },
-      });
-      if (validProjects.length !== normalizedProjectIds.length) {
-        return res.status(400).json({ error: 'พบโครงการที่ไม่ถูกต้อง' });
-      }
-    }
 
     const user = await prisma.user.update({
       where: { id },

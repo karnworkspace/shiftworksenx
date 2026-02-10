@@ -138,25 +138,6 @@ async function main() {
 
   console.log('✅ Created projects');
 
-  // สร้าง Cost Sharing (โครงการ 1 แชร์ให้โครงการ 2 และ 3)
-  await prisma.costSharing.createMany({
-    data: [
-      {
-        sourceProjectId: project1.id,
-        destinationProjectId: project2.id,
-        percentage: 30,
-      },
-      {
-        sourceProjectId: project1.id,
-        destinationProjectId: project3.id,
-        percentage: 20,
-      },
-    ],
-    skipDuplicates: true,
-  });
-
-  console.log('✅ Created cost sharing');
-
   // สร้างพนักงานตัวอย่าง - โครงการ 1
   const staff1 = await prisma.staff.create({
     data: {
@@ -346,106 +327,6 @@ async function main() {
   }
 
   console.log('✅ Created roster entries for 31 days');
-
-  // สร้าง MonthlyAttendance สำหรับการคำนวณค่าหัก
-  await prisma.monthlyAttendance.createMany({
-    data: [
-      {
-        staffId: staff1.id,
-        rosterId: roster1.id,
-        year: currentYear,
-        month: currentMonth,
-        totalWorkDays: 24,
-        totalAbsent: 0,
-        totalLate: 1,
-        totalSickLeave: 0,
-        totalPersonalLeave: 0,
-        totalVacation: 0,
-        deductionAmount: 50,
-      },
-      {
-        staffId: staff2.id,
-        rosterId: roster1.id,
-        year: currentYear,
-        month: currentMonth,
-        totalWorkDays: 26,
-        totalAbsent: 0,
-        totalLate: 0,
-        totalSickLeave: 0,
-        totalPersonalLeave: 0,
-        totalVacation: 0,
-        deductionAmount: 0,
-      },
-      {
-        staffId: staff4.id,
-        rosterId: roster1.id,
-        year: currentYear,
-        month: currentMonth,
-        totalWorkDays: 24,
-        totalAbsent: 1,
-        totalLate: 0,
-        totalSickLeave: 0,
-        totalPersonalLeave: 0,
-        totalVacation: 0,
-        deductionAmount: 450,
-      },
-      {
-        staffId: staff5.id,
-        rosterId: roster1.id,
-        year: currentYear,
-        month: currentMonth,
-        totalWorkDays: 24,
-        totalAbsent: 0,
-        totalLate: 2,
-        totalSickLeave: 0,
-        totalPersonalLeave: 0,
-        totalVacation: 0,
-        deductionAmount: 100,
-      },
-      {
-        staffId: staff6.id,
-        rosterId: roster1.id,
-        year: currentYear,
-        month: currentMonth,
-        totalWorkDays: 26,
-        totalAbsent: 0,
-        totalLate: 0,
-        totalSickLeave: 0,
-        totalPersonalLeave: 0,
-        totalVacation: 0,
-        deductionAmount: 0,
-      },
-      {
-        staffId: staff7.id,
-        rosterId: roster1.id,
-        year: currentYear,
-        month: currentMonth,
-        totalWorkDays: 22,
-        totalAbsent: 0,
-        totalLate: 0,
-        totalSickLeave: 3,
-        totalPersonalLeave: 0,
-        totalVacation: 0,
-        deductionAmount: 0,
-      },
-      {
-        staffId: staff8.id,
-        rosterId: roster1.id,
-        year: currentYear,
-        month: currentMonth,
-        totalWorkDays: 25,
-        totalAbsent: 0,
-        totalLate: 0,
-        totalSickLeave: 0,
-        totalPersonalLeave: 0,
-        totalVacation: 0,
-        deductionAmount: 0,
-      },
-    ],
-    skipDuplicates: true,
-  });
-
-  console.log('✅ Created monthly attendance records');
 
   console.log('🎉 Seed completed!');
   console.log('📧 Login with: admin@senx.com');

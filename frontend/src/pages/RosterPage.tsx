@@ -59,8 +59,7 @@ const ShiftCell = React.memo(({
   onClick: (staffId: string, day: number, shiftCode: string) => void;
 }) => {
   const cellBackgroundColor = shiftType?.color || '#f0f0f0';
-  const textColor =
-    shiftType?.textColor ?? (shiftType?.isWorkShift ? '#fff' : '#000');
+  const textColor = shiftType?.isWorkShift ? '#fff' : '#000';
   
   return (
     <div
@@ -849,7 +848,7 @@ const RosterPage: React.FC = () => {
                     width: 28,
                     height: 20,
                     backgroundColor: shift.color,
-                    color: shift.textColor ?? (shift.isWorkShift ? '#fff' : '#000'),
+                    color: shift.isWorkShift ? '#fff' : '#000',
                     fontWeight: 'bold',
                     display: 'flex',
                     alignItems: 'center',
@@ -911,7 +910,7 @@ const RosterPage: React.FC = () => {
                 disabled={isUpdating}
                 style={{
                   backgroundColor: isUpdating ? '#d9d9d9' : shift.color,
-                  color: shift.textColor ?? (shift.isWorkShift ? '#fff' : '#000'),
+                  color: shift.isWorkShift ? '#fff' : '#000',
                   fontWeight: 'bold',
                   border: 'none',
                   minWidth: 100,
