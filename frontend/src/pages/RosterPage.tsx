@@ -156,7 +156,7 @@ const RosterPage: React.FC = () => {
     return getEditDeadline(year, month, editCutoffDay, editCutoffNextMonth);
   }, [year, month, editCutoffDay, editCutoffNextMonth]);
 
-  const canEdit = !!user && user.role === 'SUPER_ADMIN' && today.valueOf() <= editDeadline.valueOf();
+  const canEdit = !!user && (user.permissions?.includes('roster') ?? false) && today.valueOf() <= editDeadline.valueOf();
 
   // Fetch roster data when project or date changes
   useEffect(() => {
@@ -239,7 +239,7 @@ const RosterPage: React.FC = () => {
     }
 
     if (!canEdit) {
-      message.error('เฉพาะ Super Admin และอยู่ในช่วงแก้ไขเท่านั้น');
+      message.error('ไม่อยู่ในช่วงเวลาที่สามารถแก้ไขได้');
       return;
     }
 
@@ -501,14 +501,6 @@ const RosterPage: React.FC = () => {
   // Handle cell click - open modal (memoized)
   const handleCellClick = useCallback((staffId: string, day: number, currentShift: string) => {
     if (!canEdit) {
-      if (!user || user.role !== 'SUPER_ADMIN') {
-        Modal.warning({
-          centered: true,
-          title: 'ไม่สามารถแก้ไขได้',
-          content: 'เฉพาะ Super Admin เท่านั้นที่สามารถแก้ไขตารางเวรได้',
-        });
-        return;
-      }
       Modal.warning({
         centered: true,
         icon: <ExclamationCircleFilled style={{ color: '#ff4d4f' }} />,
@@ -684,11 +676,6 @@ const RosterPage: React.FC = () => {
   // Get selected day display text
   const selectedDayDate = selectedDate.date(selectedDay);
   const selectedDayText = selectedDayDate.format('D MMMM BBBB');
-  const getShiftTimeText = (shift: any) => {
-    if (!shift?.isWorkShift) return '';
-    if (!shift?.startTime || !shift?.endTime) return '';
-    return `${shift.startTime} - ${shift.endTime}`;
-  };
 
   useEffect(() => {
     if (!selectedProject) return;

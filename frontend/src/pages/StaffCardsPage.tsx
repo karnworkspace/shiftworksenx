@@ -41,7 +41,7 @@ interface Staff {
   wagePerDay: number;
   staffType: 'REGULAR' | 'SPARE';
   code: string;
-  availability: 'AVAILABLE' | 'TEMPORARILY_OFF' | 'ON_LEAVE';
+  availability?: 'AVAILABLE' | 'TEMPORARILY_OFF' | 'ON_LEAVE';
   isActive: boolean;
   projectId: string;
   project?: {
@@ -56,6 +56,7 @@ const StaffCardsPage: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form] = Form.useForm();
 
   // Use global stores
@@ -122,6 +123,8 @@ const StaffCardsPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return; // ป้องกันการส่งซ้ำ
+    setIsSubmitting(true);
     try {
       const values = await form.validateFields();
       console.log('Save staff:', editingStaff ? 'edit' : 'create', values);
@@ -157,9 +160,11 @@ const StaffCardsPage: React.FC = () => {
       setIsModalOpen(false);
       form.resetFields();
       setEditingStaff(null);
+      setIsSubmitting(false);
     } catch (error) {
       console.error('Validation failed or submission error:', error);
       message.error('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+      setIsSubmitting(false);
     }
   };
 
@@ -233,7 +238,7 @@ const StaffCardsPage: React.FC = () => {
 
         <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
           {filteredStaff.map((staff) => {
-            const availabilityBadge = getAvailabilityBadge(staff.availability);
+            const availabilityBadge = getAvailabilityBadge(staff.availability || 'AVAILABLE');
 
             return (
               <Col xs={24} sm={12} md={8} lg={6} key={staff.id}>
@@ -343,7 +348,9 @@ const StaffCardsPage: React.FC = () => {
         }
         open={isModalOpen}
         onOk={handleSubmit}
-        onCancel={() => setIsModalOpen(false)}
+        okButtonProps={{ disabled: isSubmitting }}
+        cancelButtonProps={{ disabled: isSubmitting }}
+        onCancel={() => !isSubmitting && setIsModalOpen(false)}
         okText="บันทึก"
         cancelText="ยกเลิก"
         width={600}

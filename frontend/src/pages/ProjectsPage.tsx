@@ -39,6 +39,7 @@ interface Project {
 const ProjectsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [form] = Form.useForm();
 
   // Use global stores
@@ -94,6 +95,8 @@ const ProjectsPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return; // ป้องกันการส่งซ้ำ
+    setIsSubmitting(true);
     try {
       const values = await form.validateFields();
       
@@ -131,6 +134,7 @@ const ProjectsPage: React.FC = () => {
         } else {
           message.error('ไม่สามารถแก้ไขโครงการได้');
         }
+        setIsSubmitting(false);
       } else {
         const normalizedSubProjects = Array.isArray(values.subProjects)
           ? values.subProjects
@@ -160,10 +164,12 @@ const ProjectsPage: React.FC = () => {
         } else {
           message.error('ไม่สามารถสร้างโครงการได้');
         }
+        setIsSubmitting(false);
       }
     } catch (error) {
       console.error('Form validation or submission failed:', error);
       message.error('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+      setIsSubmitting(false);
     }
   };
 
@@ -296,7 +302,9 @@ const ProjectsPage: React.FC = () => {
         title={editingProject ? 'แก้ไขโครงการ' : 'สร้างโครงการใหม่'}
         open={isModalOpen}
         onOk={handleSubmit}
-        onCancel={() => setIsModalOpen(false)}
+        okButtonProps={{ disabled: isSubmitting }}
+        cancelButtonProps={{ disabled: isSubmitting }}
+        onCancel={() => !isSubmitting && setIsModalOpen(false)}
         width={700}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 20 }}>
@@ -341,7 +349,7 @@ const ProjectsPage: React.FC = () => {
                           max={100}
                           style={{ width: 140 }}
                           formatter={(value) => `${value ?? ''}%`}
-                          parser={(value) => Number((value || '').toString().replace('%', ''))}
+                          parser={(value) => Number((value || '').toString().replace('%', '')) as 0 | 100}
                         />
                       </Form.Item>
                       <Button

@@ -22,6 +22,22 @@ async function main() {
 
   console.log('✅ Created admin:', admin.email);
 
+  // สร้าง Site Admin (non-SUPER_ADMIN user with project access)
+  const siteAdminPassword = await bcrypt.hash('admin123', 10);
+  const siteAdmin = await prisma.user.upsert({
+    where: { email: 'siteadmin@gmail.com' },
+    update: {},
+    create: {
+      email: 'siteadmin@gmail.com',
+      password: siteAdminPassword,
+      name: 'Site Admin',
+      role: 'SITE_MANAGER',
+      permissions: ['reports', 'roster', 'staff', 'projects'],
+    },
+  });
+
+  console.log('✅ Created site admin:', siteAdmin.email);
+
   // สร้างประเภทกะการทำงาน (Shift Types)
   const defaultShifts = [
     {
@@ -137,6 +153,17 @@ async function main() {
   });
 
   console.log('✅ Created projects');
+
+  // สร้าง UserProject assignments สำหรับ siteAdmin
+  await prisma.userProject.createMany({
+    data: [
+      { userId: siteAdmin.id, projectId: project1.id },
+      { userId: siteAdmin.id, projectId: project2.id },
+    ],
+    skipDuplicates: true,
+  });
+
+  console.log('✅ Assigned projects to site admin (project 1 & 2)');
 
   // สร้างพนักงานตัวอย่าง - โครงการ 1
   const staff1 = await prisma.staff.create({
@@ -329,7 +356,8 @@ async function main() {
   console.log('✅ Created roster entries for 31 days');
 
   console.log('🎉 Seed completed!');
-  console.log('📧 Login with: admin@senx.com');
+  console.log('📧 Login with: admin@senx.com (SUPER_ADMIN - sees all projects)');
+  console.log('📧 Login with: siteadmin@gmail.com (SITE_MANAGER - sees project 1 & 2 only)');
   console.log('🔑 Password: admin123');
 }
 

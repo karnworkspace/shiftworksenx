@@ -47,7 +47,7 @@ class MockIntersectionObserver {
 
 // JSDOM doesn't support pseudo-element computed styles; ignore the pseudo arg.
 const originalGetComputedStyle = window.getComputedStyle;
-window.getComputedStyle = (element: Element, pseudoElt?: string | null) =>
+window.getComputedStyle = (element: Element, _pseudoElt?: string | null) =>
   originalGetComputedStyle(element);
 
 vi.setConfig({ testTimeout: 15000 });

@@ -12,6 +12,17 @@ const userSelect = {
   permissions: true,
   createdAt: true,
   updatedAt: true,
+  projectAccess: {
+    select: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          location: true,
+        },
+      },
+    },
+  },
 };
 
 /**
@@ -60,7 +71,7 @@ export const getUserById = async (req: AuthRequest, res: Response) => {
  */
 export const createUser = async (req: AuthRequest, res: Response) => {
   try {
-    const { email, password, name, role, permissions } = req.body;
+    const { email, password, name, role, permissions, projectIds } = req.body;
     const nextRole: UserRole = role || UserRole.SITE_MANAGER;
 
     // Validation
@@ -95,6 +106,14 @@ export const createUser = async (req: AuthRequest, res: Response) => {
         name,
         role: nextRole,
         permissions: permissions || ['reports', 'roster', 'staff', 'projects', 'users', 'settings'],
+        projectAccess: {
+          create:
+            projectIds && projectIds.length > 0
+              ? projectIds.map((projectId: string) => ({
+                  projectId,
+                }))
+              : [],
+        },
       },
       select: userSelect,
     });
@@ -205,6 +224,14 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' });
     }
 
+    // Authorization check: only admin or the user themselves can change password
+    const isOwnPassword = req.user?.userId === id;
+    const isAdmin = req.user?.role === 'SUPER_ADMIN';
+
+    if (!isOwnPassword && !isAdmin) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เปลี่ยนรหัสผ่านของผู้ใช้อื่น' });
+    }
+
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
       where: { id },
@@ -214,8 +241,11 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
     }
 
-    // If changing own password, verify current password
-    if (req.user?.userId === id && currentPassword) {
+    // If changing own password, must verify current password
+    if (isOwnPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'กรุณาระบุรหัสผ่านปัจจุบัน' });
+      }
       const isValid = await bcrypt.compare(currentPassword, existingUser.password);
       if (!isValid) {
         return res.status(400).json({ error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' });
@@ -235,5 +265,105 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Change password error:', error);
     return res.status(500).json({ error: 'Failed to change password' });
+  }
+};
+
+/**
+ * Get user's project access
+ */
+export const getUserProjectAccess = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        projectAccess: {
+          select: {
+            projectId: true,
+            project: {
+              select: {
+                id: true,
+                name: true,
+                location: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+    }
+
+    const projects = user.projectAccess.map((pa) => pa.project);
+
+    return res.json({ projects });
+  } catch (error) {
+    console.error('Get user project access error:', error);
+    return res.status(500).json({ error: 'Failed to fetch user project access' });
+  }
+};
+
+/**
+ * Update user's project access
+ */
+export const updateUserProjectAccess = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { projectIds } = req.body;
+
+    if (!Array.isArray(projectIds)) {
+      return res.status(400).json({ error: 'projectIds ต้องเป็น array' });
+    }
+
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({ error: 'ไม่พบผู้ใช้' });
+    }
+
+    // Delete existing project access
+    await prisma.userProject.deleteMany({
+      where: { userId: id },
+    });
+
+    // Create new project access
+    if (projectIds.length > 0) {
+      await prisma.userProject.createMany({
+        data: projectIds.map((projectId) => ({
+          userId: id,
+          projectId,
+        })),
+      });
+    }
+
+    // Get updated project access
+    const projects = await prisma.userProject.findMany({
+      where: { userId: id },
+      select: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            location: true,
+          },
+        },
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'อัพเดทการเข้าถึงโครงการสำเร็จ',
+      projects: projects.map((p) => p.project),
+    });
+  } catch (error) {
+    console.error('Update user project access error:', error);
+    return res.status(500).json({ error: 'Failed to update user project access' });
   }
 };

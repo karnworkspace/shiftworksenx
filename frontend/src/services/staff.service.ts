@@ -15,6 +15,7 @@ export interface Staff {
   projectId: string;
   defaultShift?: string;
   weeklyOffDay?: number | null;
+  availability?: 'AVAILABLE' | 'TEMPORARILY_OFF' | 'ON_LEAVE';
   remark?: string;
   createdAt: string;
   updatedAt: string;

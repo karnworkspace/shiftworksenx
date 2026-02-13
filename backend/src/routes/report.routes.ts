@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import {
   getMonthlyDeductionReport,
   getFinancialOverview,
@@ -10,12 +10,12 @@ const router = Router();
 router.use(authenticate);
 
 // GET /api/reports/deduction?projectId=xxx&year=2567&month=1
-router.get('/deduction', getMonthlyDeductionReport);
+router.get('/deduction', requirePermission('reports'), getMonthlyDeductionReport);
 
 // GET /api/reports/financial-overview?year=2567&month=1
-router.get('/financial-overview', getFinancialOverview);
+router.get('/financial-overview', requirePermission('reports'), getFinancialOverview);
 
 // GET /api/reports/export?projectId=xxx&year=2567&month=1
-router.get('/export', exportReportCSV);
+router.get('/export', requirePermission('reports'), exportReportCSV);
 
 export default router;

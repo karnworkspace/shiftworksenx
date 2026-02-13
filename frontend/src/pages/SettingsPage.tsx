@@ -150,9 +150,14 @@ const SettingsPage: React.FC = () => {
       setIsShiftModalOpen(false);
       shiftForm.resetFields();
       setEditingShift(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting shift:', error);
-      message.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      const errorMessage = error.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+      if (errorMessage.includes('already exists') || errorMessage.includes('ซ้ำ')) {
+        message.error('รหัสกะซ้ำ กรุณาใช้รหัสอื่น');
+      } else {
+        message.error(errorMessage);
+      }
     }
   };
 
@@ -404,7 +409,15 @@ const SettingsPage: React.FC = () => {
                   </div>
                   <Table
                     columns={shiftColumns}
-                    dataSource={shiftTypes}
+                    dataSource={[...shiftTypes].sort((a, b) => {
+                      // Natural sort for shift codes (e.g., 1, 2, 9, 13 instead of 1, 13, 2, 9)
+                      const aNum = parseInt(a.code, 10);
+                      const bNum = parseInt(b.code, 10);
+                      if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return aNum - bNum;
+                      }
+                      return a.code.localeCompare(b.code);
+                    })}
                     rowKey="id"
                     pagination={false}
                   />

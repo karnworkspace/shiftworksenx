@@ -6,7 +6,7 @@ import {
     updateShift,
     deleteShift,
 } from '../controllers/shift.controller';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, requireAdmin } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -20,12 +20,12 @@ router.get('/', getAllShifts);
 router.get('/:id', getShiftById);
 
 // POST /api/shifts - สร้างกะใหม่
-router.post('/', createShift);
+router.post('/', requireAdmin, createShift);
 
 // PUT /api/shifts/:id - แก้ไขข้อมูลกะ
-router.put('/:id', updateShift);
+router.put('/:id', requireAdmin, updateShift);
 
 // DELETE /api/shifts/:id - ลบกะ
-router.delete('/:id', deleteShift);
+router.delete('/:id', requireAdmin, deleteShift);
 
 export default router;

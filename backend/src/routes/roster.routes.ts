@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import {
   getRoster,
   updateRosterEntry,
@@ -13,21 +13,21 @@ const router = Router();
 router.use(authenticate);
 
 // GET /api/rosters?projectId=xxx&year=2567&month=1
-router.get('/', getRoster);
+router.get('/', requirePermission('roster'), getRoster);
 
 // GET /api/rosters/stats?rosterId=xxx&day=15
-router.get('/stats', getRosterDayStats);
+router.get('/stats', requirePermission('roster'), getRosterDayStats);
 
 // POST /api/rosters/entry
-router.post('/entry', updateRosterEntry);
+router.post('/entry', requirePermission('roster'), updateRosterEntry);
 
 // POST /api/rosters/batch
-router.post('/batch', batchUpdateRosterEntries);
+router.post('/batch', requirePermission('roster'), batchUpdateRosterEntries);
 
 // POST /api/rosters/import
-router.post('/import', importRoster);
+router.post('/import', requirePermission('roster'), importRoster);
 
 // DELETE /api/rosters/entry/:id
-router.delete('/entry/:id', deleteRosterEntry);
+router.delete('/entry/:id', requirePermission('roster'), deleteRosterEntry);
 
 export default router;

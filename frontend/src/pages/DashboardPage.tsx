@@ -56,7 +56,7 @@ const DashboardPage: React.FC = () => {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
   const [reportData, setReportData] = useState<AttendanceRecord[]>([]);
-  const [reportLoading, setReportLoading] = useState(false);
+  const [, setReportLoading] = useState(false);
 
   // Fetch projects on mount
   useEffect(() => {

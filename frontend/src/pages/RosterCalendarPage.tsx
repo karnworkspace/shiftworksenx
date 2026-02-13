@@ -55,7 +55,7 @@ const RosterCalendarPage: React.FC = () => {
   useEffect(() => {
     fetchProjects();
     fetchShiftTypes();
-  }, [];
+  }, []);
 
   // Set default project
   useEffect(() => {

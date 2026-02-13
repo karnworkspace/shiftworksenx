@@ -382,9 +382,6 @@ export const applyStaffDefaultShift = async (req: AuthRequest, res: Response) =>
       return res.status(403).json({ error: 'เนเธกเนเธกเธตเธชเธดเธ—เธเธดเนเน€เธเนเธฒเธ–เธถเธเนเธเธฃเธเธเธฒเธฃเธเธตเน' });
     }
 
-    if (!isSuperAdmin(req)) {
-      return res.status(403).json({ error: 'เน€เธเธเธฒเธฐ Super Admin เท่านั้นที่สามารถตั้งค่ากะเริ่มต้นได้' });
-    }
 
     const oldDefault = staff.defaultShift || 'OFF';
     const newDefault = defaultShift;
@@ -548,9 +545,6 @@ export const applyStaffWeeklyOffDay = async (req: AuthRequest, res: Response) =>
       return res.status(403).json({ error: 'เนเธกเนเธกเธตเธชเธดเธ—เธเธดเนเน€เธเนเธฒเธ–เธถเธเนเธเธฃเธเธเธฒเธฃเธเธตเน' });
     }
 
-    if (!isSuperAdmin(req)) {
-      return res.status(403).json({ error: 'เฉพาะ Super Admin เท่านั้นที่สามารถตั้งค่าวันหยุดประจำสัปดาห์ได้' });
-    }
 
     const oldWeeklyOffDay = staff.weeklyOffDay ?? null;
     const newWeeklyOffDay = weeklyOffDay === null ? null : Number(weeklyOffDay);

@@ -8,6 +8,13 @@ export interface User {
     permissions: string[];
     createdAt: string;
     updatedAt: string;
+    projectAccess?: Array<{
+        project: {
+            id: string;
+            name: string;
+            location?: string;
+        };
+    }>;
 }
 
 export interface CreateUserData {
@@ -24,6 +31,12 @@ export interface UpdateUserData {
     name?: string;
     role?: string;
     permissions?: string[];
+}
+
+export interface Project {
+    id: string;
+    name: string;
+    location?: string;
 }
 
 export interface ChangePasswordData {
@@ -64,5 +77,17 @@ export const userService = {
     // Change password
     changePassword: async (id: string, data: ChangePasswordData): Promise<void> => {
         await apiClient.put(`/users/${id}/password`, data);
+    },
+
+    // Get user's project access
+    getUserProjects: async (id: string): Promise<Project[]> => {
+        const response = await apiClient.get(`/users/${id}/projects`);
+        return response.data.projects;
+    },
+
+    // Update user's project access
+    updateUserProjects: async (id: string, projectIds: string[]): Promise<Project[]> => {
+        const response = await apiClient.put(`/users/${id}/projects`, { projectIds });
+        return response.data.projects;
     },
 };
