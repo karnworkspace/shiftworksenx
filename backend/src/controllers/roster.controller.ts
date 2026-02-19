@@ -194,18 +194,14 @@ export const updateRosterEntry = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Roster not found' });
     }
 
-    if (req.user?.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'เฉพาะ Super Admin เท่านั้นที่แก้ไขได้' });
+    if (!(await ensureProjectAccess(req, roster.projectId))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     const cutoffDay = roster.project.editCutoffDay;
     const useNextMonth = roster.project.editCutoffNextMonth;
     if (!isEditWindowOpen(roster.year, roster.month, cutoffDay, useNextMonth)) {
       return res.status(403).json({ error: 'เกินกำหนดการแก้ไขข้อมูล กรุณาติดต่อเจ้าหน้าที่' });
-    }
-
-    if (!(await ensureProjectAccess(req, roster.projectId))) {
-      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     // Check if staff exists and is in the same project
@@ -282,18 +278,14 @@ export const batchUpdateRosterEntries = async (req: AuthRequest, res: Response) 
       return res.status(404).json({ error: 'Roster not found' });
     }
 
-    if (req.user?.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'เฉพาะ Super Admin เท่านั้นที่แก้ไขได้' });
+    if (!(await ensureProjectAccess(req, roster.projectId))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     const cutoffDay = roster.project.editCutoffDay;
     const useNextMonth = roster.project.editCutoffNextMonth;
     if (!isEditWindowOpen(roster.year, roster.month, cutoffDay, useNextMonth)) {
       return res.status(403).json({ error: 'เกินกำหนดการแก้ไขข้อมูล กรุณาติดต่อเจ้าหน้าที่' });
-    }
-
-    if (!(await ensureProjectAccess(req, roster.projectId))) {
-      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     // Get valid shift codes from database
@@ -365,10 +357,6 @@ export const importRoster = async (req: AuthRequest, res: Response) => {
     const monthNum = parseInt(String(month), 10);
     if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
       return res.status(400).json({ error: 'Invalid year or month' });
-    }
-
-    if (!req.user || req.user.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'เฉพาะ Super Admin เท่านั้นที่แก้ไขได้' });
     }
 
     if (!(await ensureProjectAccess(req, projectId))) {
@@ -596,18 +584,14 @@ export const deleteRosterEntry = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Roster not found' });
     }
 
-    if (req.user?.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'เฉพาะ Super Admin เท่านั้นที่แก้ไขได้' });
+    if (!(await ensureProjectAccess(req, roster.projectId))) {
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     const cutoffDay = roster.project.editCutoffDay;
     const useNextMonth = roster.project.editCutoffNextMonth;
     if (!isEditWindowOpen(roster.year, roster.month, cutoffDay, useNextMonth)) {
       return res.status(403).json({ error: 'เกินกำหนดการแก้ไขข้อมูล กรุณาติดต่อเจ้าหน้าที่' });
-    }
-
-    if (!(await ensureProjectAccess(req, roster.projectId))) {
-      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     await prisma.rosterEntry.delete({

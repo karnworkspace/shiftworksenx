@@ -70,11 +70,21 @@ export const refresh = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Refresh Token ไม่ถูกต้องหรือหมดอายุ' });
     }
 
-    // สร้าง tokens ใหม่
+    // Re-fetch user from DB to get latest role/status
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: { id: true, email: true, role: true },
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: 'ไม่พบผู้ใช้' });
+    }
+
+    // สร้าง tokens ใหม่ with fresh data from DB
     const tokens = generateTokenPair({
-      userId: payload.userId,
-      email: payload.email,
-      role: payload.role,
+      userId: user.id,
+      email: user.email,
+      role: user.role,
     });
 
     // Update refresh token in cookie

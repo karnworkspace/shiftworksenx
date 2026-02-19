@@ -47,7 +47,7 @@ describe('rosterStore', () => {
     });
     (rosterService.updateEntry as any).mockRejectedValue(new Error('fail'));
     await expect(
-      useRosterStore.getState().updateRosterEntry({ staffId: 's1', day: 1, shiftCode: 'X' })
+      useRosterStore.getState().updateRosterEntry({ rosterId: 'r1', staffId: 's1', day: 1, shiftCode: 'X' })
     ).rejects.toThrow();
     expect(useRosterStore.getState().rosterMatrix.s1.days[1]).toBeUndefined();
   });

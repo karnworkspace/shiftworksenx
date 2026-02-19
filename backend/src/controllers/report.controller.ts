@@ -66,11 +66,15 @@ async function calculateMonthlyAttendance(
 
   console.log(`[Staff ${staff.name}] Attendance: workDays=${totalWorkDays}, absent=${totalAbsent}(code: ${absentCode}), sick=${totalSickLeave}, personal=${totalPersonalLeave}, vacation=${totalVacation}`);
 
-  // Calculate deduction (absent days * wage per day)
+  // Calculate deduction (absent days * wage per day) - for display only
   const deductionAmount = totalAbsent * wagePerDay;
 
-  // Calculate expected salary
+  // Calculate expected salary (only actual work days)
   const expectedSalary = totalWorkDays * wagePerDay;
+
+  // Net salary = expected salary (deduction is already reflected by
+  // absent days not being counted in totalWorkDays)
+  const netSalary = expectedSalary;
 
   return {
     staffId,
@@ -85,7 +89,7 @@ async function calculateMonthlyAttendance(
     totalLate: 0, // TODO: Implement late tracking
     deductionAmount,
     expectedSalary,
-    netSalary: expectedSalary - deductionAmount,
+    netSalary,
   };
 }
 

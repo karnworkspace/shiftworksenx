@@ -171,6 +171,8 @@ export const applyPositionDefaultWage = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Position not found' });
     }
 
+    const defaultWage = decimalToNumber(position.defaultWage);
+
     const whereClause: any = {
       OR: [
         { positionId: id },
@@ -178,7 +180,17 @@ export const applyPositionDefaultWage = async (req: Request, res: Response) => {
       ],
     };
 
-    const defaultWage = decimalToNumber(position.defaultWage);
+    // When mode is 'not_overridden', only update staff whose current wage
+    // differs from the new default — meaning they still had an old default.
+    // Without a separate wageOverride flag, we use a heuristic:
+    // skip staff whose wage was manually set to a non-default value.
+    // NOTE: This requires oldDefaultWage from request for accurate filtering.
+    if (mode === 'not_overridden' && req.body.oldDefaultWage !== undefined) {
+      const oldWage = Number(req.body.oldDefaultWage);
+      if (Number.isFinite(oldWage)) {
+        whereClause.wagePerDay = oldWage;
+      }
+    }
 
     const result = await prisma.staff.updateMany({
       where: whereClause,

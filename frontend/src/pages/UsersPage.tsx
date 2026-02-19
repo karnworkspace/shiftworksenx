@@ -25,6 +25,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userService, User, CreateUserData, UpdateUserData } from '../services/user.service';
+import { projectService } from '../services/project.service';
 
 const { Title } = Typography;
 
@@ -64,14 +65,22 @@ export default function UsersPage() {
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+    const [loadingUserProjects, setLoadingUserProjects] = useState(false);
     const [form] = Form.useForm();
     const [passwordForm] = Form.useForm();
-    const selectedRole = Form.useWatch('role', form);
+    // Watch role field for reactive form updates
+    Form.useWatch('role', form);
 
     // Fetch users
     const { data: users = [], isLoading } = useQuery({
         queryKey: ['users'],
         queryFn: userService.getAll,
+    });
+
+    // Fetch projects
+    const { data: projects = [] } = useQuery({
+        queryKey: ['projects'],
+        queryFn: projectService.getAll,
     });
 
     // Create user mutation
@@ -94,7 +103,6 @@ export default function UsersPage() {
         onSuccess: () => {
             message.success('แก้ไขผู้ใช้สำเร็จ');
             queryClient.invalidateQueries({ queryKey: ['users'] });
-            handleCloseModal();
         },
         onError: (error: any) => {
             message.error(error.response?.data?.error || 'แก้ไขผู้ใช้ไม่สำเร็จ');
@@ -126,20 +134,49 @@ export default function UsersPage() {
         },
     });
 
+    // Update user project access mutation
+    const updateProjectAccessMutation = useMutation({
+        mutationFn: ({ userId, projectIds }: { userId: string; projectIds: string[] }) =>
+            userService.updateUserProjects(userId, projectIds),
+        onSuccess: () => {
+            message.success('อัพเดทการเข้าถึงโครงการสำเร็จ');
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            handleCloseModal();
+        },
+        onError: (error: any) => {
+            message.error(error.response?.data?.error || 'อัพเดทการเข้าถึงโครงการไม่สำเร็จ');
+        },
+    });
+
     const handleOpenModal = (user?: User) => {
         if (user) {
             setEditingUser(user);
+            setLoadingUserProjects(true);
             form.setFieldsValue({
                 email: user.email,
                 name: user.name,
                 role: user.role,
                 permissions: user.permissions || [],
+                // Don't set projectIds yet — wait for async load to prevent race condition
+            });
+            // Load user's projects before allowing submit
+            userService.getUserProjects(user.id).then((userProjects) => {
+                form.setFieldsValue({
+                    projectIds: userProjects.map(p => p.id),
+                });
+            }).catch(() => {
+                // On error, set to empty so the form field exists
+                form.setFieldsValue({ projectIds: [] });
+            }).finally(() => {
+                setLoadingUserProjects(false);
             });
         } else {
             setEditingUser(null);
+            setLoadingUserProjects(false);
             form.resetFields();
             form.setFieldsValue({
                 permissions: ['reports', 'roster', 'staff', 'projects'],
+                projectIds: [],
             });
         }
         setIsModalOpen(true);
@@ -164,7 +201,8 @@ export default function UsersPage() {
 
     const handleSubmit = async (values: any) => {
         if (editingUser) {
-            updateMutation.mutate({
+            // Update user details first
+            await updateMutation.mutateAsync({
                 id: editingUser.id,
                 data: {
                     email: values.email,
@@ -173,6 +211,13 @@ export default function UsersPage() {
                     permissions: values.permissions,
                 },
             });
+            // Then update project access (await to ensure it completes)
+            if (values.projectIds !== undefined) {
+                await updateProjectAccessMutation.mutateAsync({
+                    userId: editingUser.id,
+                    projectIds: values.projectIds || [],
+                });
+            }
         } else {
             createMutation.mutate({
                 email: values.email,
@@ -180,6 +225,7 @@ export default function UsersPage() {
                 name: values.name,
                 role: values.role,
                 permissions: values.permissions,
+                projectIds: values.projectIds || [],
             });
         }
     };
@@ -232,6 +278,24 @@ export default function UsersPage() {
                 ) : (
                     <span style={{ color: '#999' }}>-</span>
                 ),
+        },
+        {
+            title: 'โครงการที่เข้าถึงได้',
+            key: 'projects',
+            render: (_: any, record: User) => {
+                if (!record.projectAccess || record.projectAccess.length === 0) {
+                    return <span style={{ color: '#fa8c16' }}>ทั้งหมด</span>;
+                }
+                return (
+                    <Space wrap>
+                        {record.projectAccess.map((pa) => (
+                            <Tag key={pa.project.id} color="cyan">
+                                {pa.project.name}
+                            </Tag>
+                        ))}
+                    </Space>
+                );
+            },
         },
         {
             title: 'วันที่สร้าง',
@@ -378,13 +442,30 @@ export default function UsersPage() {
                         </Checkbox.Group>
                     </Form.Item>
 
+                    <Form.Item
+                        name="projectIds"
+                        label="โครงการที่สามารถเข้าถึงได้"
+                    >
+                        <Select
+                            mode="multiple"
+                            placeholder="เลือกโครงการ (ต้องเลือกอย่างน้อย 1 โครงการ)"
+                            optionLabelProp="label"
+                        >
+                            {projects.map((project) => (
+                                <Select.Option key={project.id} value={project.id} label={project.name}>
+                                    {project.name} {project.location && `(${project.location})`}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </Form.Item>
+
                     <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
                         <Space>
                             <Button onClick={handleCloseModal}>ยกเลิก</Button>
                             <Button
                                 type="primary"
                                 htmlType="submit"
-                                loading={createMutation.isPending || updateMutation.isPending}
+                                loading={createMutation.isPending || updateMutation.isPending || loadingUserProjects}
                             >
                                 {editingUser ? 'บันทึก' : 'สร้าง'}
                             </Button>
@@ -448,4 +529,5 @@ export default function UsersPage() {
         </div>
     );
 }
+
 

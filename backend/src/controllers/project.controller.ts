@@ -40,12 +40,19 @@ export const getAllProjects = async (req: AuthRequest, res: Response) => {
   try {
     const includeInactive = req.query.includeInactive === 'true';
     const isAdmin = isSuperAdmin(req);
-    const allowedIds = !isAdmin && req.user ? await getAccessibleProjectIds(req.user.userId) : undefined;
+    // SUPER_ADMIN เห็นทุกโครงการ, คนอื่นเห็นเฉพาะที่ถูก assign
+    const allowedIds = !isAdmin && req.user ? await getAccessibleProjectIds(req.user.userId) : null;
+
+    // Debug: log project access for non-admin users
+    if (!isAdmin && req.user) {
+      console.log(`[getAllProjects] User ${req.user.email} (${req.user.role}) → allowedIds:`, allowedIds);
+    }
 
     const projects = await prisma.project.findMany({
       where: {
         ...(includeInactive ? {} : { isActive: true }),
-        ...(allowedIds ? { id: { in: allowedIds } } : {}),
+        // ถ้า allowedIds เป็น null (SUPER_ADMIN) ไม่กรอง, ถ้าเป็น array (รวม []) กรองตาม IDs
+        ...(allowedIds !== null ? { id: { in: allowedIds } } : {}),
       },
       include: {
         manager: {
@@ -217,34 +224,36 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: parsed.error });
     }
 
-    // Update project basic fields
-    await prisma.project.update({
-      where: { id },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(location !== undefined && { location }),
-        ...(themeColor !== undefined && { themeColor }),
-        ...(managerId !== undefined && { managerId }),
-        ...(isActive !== undefined && { isActive }),
-        ...(description !== undefined && { description }),
-        ...(editCutoffDay !== undefined && { editCutoffDay }),
-        ...(editCutoffNextMonth !== undefined && { editCutoffNextMonth }),
-      },
-    });
+    // Update project basic fields and handle sub-projects atomically
+    await prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(location !== undefined && { location }),
+          ...(themeColor !== undefined && { themeColor }),
+          ...(managerId !== undefined && { managerId }),
+          ...(isActive !== undefined && { isActive }),
+          ...(description !== undefined && { description }),
+          ...(editCutoffDay !== undefined && { editCutoffDay }),
+          ...(editCutoffNextMonth !== undefined && { editCutoffNextMonth }),
+        },
+      });
 
-    // Handle sub-projects: delete all existing and re-create
-    if (parsed.value !== undefined) {
-      await prisma.subProject.deleteMany({ where: { projectId: id } });
-      if (parsed.value.length > 0) {
-        await prisma.subProject.createMany({
-          data: parsed.value.map(sp => ({
-            name: sp.name,
-            percentage: sp.percentage,
-            projectId: id,
-          })),
-        });
+      // Handle sub-projects: delete all existing and re-create
+      if (parsed.value !== undefined) {
+        await tx.subProject.deleteMany({ where: { projectId: id } });
+        if (parsed.value.length > 0) {
+          await tx.subProject.createMany({
+            data: parsed.value.map(sp => ({
+              name: sp.name,
+              percentage: sp.percentage,
+              projectId: id,
+            })),
+          });
+        }
       }
-    }
+    });
 
     // Fetch updated project with subProjects
     const updatedProject = await prisma.project.findUnique({

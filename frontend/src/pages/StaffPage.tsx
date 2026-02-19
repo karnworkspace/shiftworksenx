@@ -44,6 +44,7 @@ interface Staff {
 const StaffPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [defaultShiftUpdatingId, setDefaultShiftUpdatingId] = useState<string | null>(null);
   const [weeklyOffUpdatingId, setWeeklyOffUpdatingId] = useState<string | null>(null);
   const [reorderingId, setReorderingId] = useState<string | null>(null);
@@ -84,6 +85,18 @@ const StaffPage: React.FC = () => {
     return positions.find((p) => p.id === selectedPositionId)?.name;
   }, [positions, selectedPositionId]);
 
+  // Sort shift types same as in SettingsPage (natural sort)
+  const sortedShiftTypes = useMemo(() => {
+    return [...shiftTypes].sort((a, b) => {
+      const aNum = parseInt(a.code, 10);
+      const bNum = parseInt(b.code, 10);
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        return aNum - bNum;
+      }
+      return a.code.localeCompare(b.code);
+    });
+  }, [shiftTypes]);
+
   const filtersActive = !!selectedPositionId || !!selectedDefaultShift;
 
   // Filter staff by selected project + filters
@@ -100,7 +113,7 @@ const StaffPage: React.FC = () => {
       return true;
     });
   }, [orderedStaffAll, selectedPositionId, filterPositionName, selectedDefaultShift]);
-  const canEditDefaults = user?.role === 'SUPER_ADMIN';
+  const canEditDefaults = user?.permissions?.includes('staff') ?? false;
   const weekOptions = [
     { value: null, label: 'ไม่กำหนด' },
     { value: 0, label: 'อาทิตย์' },
@@ -143,6 +156,8 @@ const StaffPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return; // ป้องกันการส่งซ้ำ
+    setIsSubmitting(true);
     try {
       const values = await form.validateFields();
 
@@ -191,10 +206,12 @@ const StaffPage: React.FC = () => {
       setIsModalOpen(false);
       form.resetFields();
       setEditingStaff(null);
+      setIsSubmitting(false);
     } catch (error: any) {
       console.error('Submit error:', error);
       console.error('Error response:', error.response?.data);
       message.error(error.response?.data?.error || 'เกิดข้อผิดพลาด');
+      setIsSubmitting(false);
     }
   };
 
@@ -345,7 +362,7 @@ const StaffPage: React.FC = () => {
           disabled={!canEditDefaults || defaultShiftUpdatingId === record.id}
           onChange={(value) => handleDefaultShiftChange(record, value)}
         >
-          {shiftTypes.map((shift) => (
+          {sortedShiftTypes.map((shift) => (
             <Select.Option key={shift.code} value={shift.code}>
               {getShiftLabel(shift)}
             </Select.Option>
@@ -440,7 +457,7 @@ const StaffPage: React.FC = () => {
               value={selectedDefaultShift}
               onChange={(value) => setSelectedDefaultShift(value)}
             >
-              {shiftTypes.map((shift) => (
+              {sortedShiftTypes.map((shift) => (
                 <Select.Option key={shift.code} value={shift.code}>
                   {shift.name} ({shift.code})
                 </Select.Option>
@@ -476,7 +493,9 @@ const StaffPage: React.FC = () => {
         title={editingStaff ? 'แก้ไขพนักงาน' : 'เพิ่มพนักงานใหม่'}
         open={isModalOpen}
         onOk={handleSubmit}
-        onCancel={() => setIsModalOpen(false)}
+        okButtonProps={{ disabled: isSubmitting }}
+        cancelButtonProps={{ disabled: isSubmitting }}
+        onCancel={() => !isSubmitting && setIsModalOpen(false)}
         width={600}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 20 }}>

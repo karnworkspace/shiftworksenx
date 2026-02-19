@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import {
   getAllStaff,
   getStaffById,
@@ -16,30 +16,30 @@ const router = Router();
 router.use(authenticate);
 
 // GET /api/staff?projectId=xxx&includeInactive=true
-router.get('/', getAllStaff);
+router.get('/', requirePermission('staff'), getAllStaff);
 
 // GET /api/staff/:id
-router.get('/:id', getStaffById);
+router.get('/:id', requirePermission('staff'), getStaffById);
 
 // POST /api/staff
-router.post('/', createStaff);
+router.post('/', requirePermission('staff'), createStaff);
 
 // PUT /api/staff/:id
-router.put('/:id', updateStaff);
+router.put('/:id', requirePermission('staff'), updateStaff);
 
 // POST /api/staff/reorder
-router.post('/reorder', reorderStaff);
+router.post('/reorder', requirePermission('staff'), reorderStaff);
 
 // POST /api/staff/:id/default-shift
-router.post('/:id/default-shift', applyStaffDefaultShift);
+router.post('/:id/default-shift', requirePermission('staff'), applyStaffDefaultShift);
 
 // POST /api/staff/:id/weekly-off-day
-router.post('/:id/weekly-off-day', applyStaffWeeklyOffDay);
+router.post('/:id/weekly-off-day', requirePermission('staff'), applyStaffWeeklyOffDay);
 
 // PATCH /api/staff/:id/toggle-status
-router.patch('/:id/toggle-status', toggleStaffStatus);
+router.patch('/:id/toggle-status', requirePermission('staff'), toggleStaffStatus);
 
 // DELETE /api/staff/:id (use with caution)
-router.delete('/:id', deleteStaff);
+router.delete('/:id', requirePermission('staff'), deleteStaff);
 
 export default router;
