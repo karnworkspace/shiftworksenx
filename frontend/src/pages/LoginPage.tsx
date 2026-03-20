@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth.service';
 import { useAuthStore } from '../stores/authStore';
 import senxLogoUrl from '../assets/senx-logo.webp';
-import loginBgUrl from '../assets/login-bg.png';
+import loginBgUrl from '../assets/login-bg.jpg';
 
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
