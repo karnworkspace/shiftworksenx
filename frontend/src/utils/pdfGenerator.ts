@@ -93,7 +93,7 @@ export const generateMonthlyReport = async (data: ReportData) => {
   // Build day headers HTML
   let dayHeadersHTML = '';
   for (let day = 1; day <= daysInMonth; day++) {
-    dayHeadersHTML += `<th style="padding: 4px 2px; text-align: center; border: 1px solid #000; font-weight: normal;">${day}</th>`;
+    dayHeadersHTML += `<th style="padding: 3px 1px; text-align: center; border: 1px solid #000; font-weight: normal; font-size: 9px; overflow: hidden;">${day}</th>`;
   }
 
   // Build table rows HTML
@@ -103,9 +103,9 @@ export const generateMonthlyReport = async (data: ReportData) => {
     let absentCount = 0;
     const bgColor = index % 2 === 0 ? '#f5f5f5' : '#ffffff';
     let rowHTML = `<tr style="background-color: ${bgColor};">`;
-    rowHTML += `<td style="text-align: center; padding: 4px 3px; border: 1px solid #000; font-size: 9px;">${index + 1}</td>`;
-    rowHTML += `<td style="text-align: left; padding: 4px 6px; border: 1px solid #000; white-space: nowrap; font-size: 9px;">${staff.name}</td>`;
-    rowHTML += `<td style="text-align: left; padding: 4px 6px; border: 1px solid #000; white-space: nowrap; font-size: 9px;">${staff.position}</td>`;
+    rowHTML += `<td style="text-align: center; padding: 3px 2px; border: 1px solid #000; font-size: 9px;">${index + 1}</td>`;
+    rowHTML += `<td style="text-align: left; padding: 3px 4px; border: 1px solid #000; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0;" title="${staff.name}">${staff.name}</td>`;
+    rowHTML += `<td style="text-align: left; padding: 3px 4px; border: 1px solid #000; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0;" title="${staff.position}">${staff.position}</td>`;
     
     for (let day = 1; day <= daysInMonth; day++) {
       const shift = data.rosterData[staff.id]?.[day] || 'OFF';
@@ -118,7 +118,8 @@ export const generateMonthlyReport = async (data: ReportData) => {
           dailyDeductionTotals[day - 1] += sickLeaveDeductionPerDay;
         }
       }
-      rowHTML += `<td style="text-align: center; padding: 4px 2px; border: 1px solid #000; font-size: 9px;">${shift}</td>`;
+      const shiftFontSize = shift.length <= 2 ? '10px' : shift.length === 3 ? '8.5px' : shift.length === 4 ? '7px' : shift.length === 5 ? '7px' : shift.length === 6 ? '6px' : '5px';
+      rowHTML += `<td style="text-align: center; padding: 2px 1px; border: 1px solid #000; font-size: ${shiftFontSize}; overflow: hidden; white-space: nowrap;">${shift}</td>`;
     }
     
     const excessSickDays = Math.max(0, sickCount - maxSickDays);
@@ -144,10 +145,12 @@ export const generateMonthlyReport = async (data: ReportData) => {
   });
 
   let deductionRowHTML = '<tr style="background-color: #fff2f0; font-weight: bold;">';
-  deductionRowHTML += '<td colspan="3" style="text-align: right; padding: 4px 6px; border: 1px solid #000; font-size: 9px;">ยอดหักเงิน/วัน</td>';
+  deductionRowHTML += '<td colspan="3" style="text-align: right; padding: 3px 4px; border: 1px solid #000; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0;">ยอดหักเงิน/วัน</td>';
   for (let day = 1; day <= daysInMonth; day++) {
     const value = dailyDeductionTotals[day - 1];
-    deductionRowHTML += `<td style="text-align: center; padding: 4px 2px; border: 1px solid #000; font-size: 8px;">${value > 0 ? value.toLocaleString() : '-'}</td>`;
+    const valStr = value > 0 ? value.toLocaleString() : '-';
+    const valFontSize = valStr.length <= 4 ? '9px' : valStr.length <= 6 ? '7.5px' : '6px';
+    deductionRowHTML += `<td style="text-align: center; padding: 2px 1px; border: 1px solid #000; font-size: ${valFontSize}; overflow: hidden; white-space: nowrap;">${valStr}</td>`;
   }
   deductionRowHTML += '</tr>';
   tableRowsHTML += deductionRowHTML;
@@ -243,12 +246,12 @@ export const generateMonthlyReport = async (data: ReportData) => {
         <div style="font-size: 12px; font-weight: bold; padding: 5px 8px; background: #e0e0e0; border: 1px solid #000; border-bottom: none;">
               สรุปรายการหักขาดอัตรา ประจำเดือน ${formatThaiDate(data.month)}
         </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 9px; table-layout: fixed;">
           <thead>
             <tr style="background-color: #333; color: white;">
-              <th style="padding: 5px 3px; text-align: center; border: 1px solid #000; width: 25px;">No.</th>
-              <th style="padding: 5px 3px; text-align: center; border: 1px solid #000;">ชื่อ-นามสกุล</th>
-              <th style="padding: 5px 3px; text-align: center; border: 1px solid #000;">ตำแหน่ง</th>
+              <th style="padding: 4px 2px; text-align: center; border: 1px solid #000; width: 20px; overflow: hidden;">No.</th>
+              <th style="padding: 4px 2px; text-align: center; border: 1px solid #000; width: 12%; overflow: hidden;">ชื่อ-นามสกุล</th>
+              <th style="padding: 4px 2px; text-align: center; border: 1px solid #000; width: 8%; overflow: hidden;">ตำแหน่ง</th>
               ${dayHeadersHTML}
             </tr>
           </thead>

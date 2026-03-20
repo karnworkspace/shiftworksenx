@@ -379,7 +379,7 @@ export const applyStaffDefaultShift = async (req: AuthRequest, res: Response) =>
     }
 
     if (!(await ensureProjectAccess(req, staff.projectId))) {
-      return res.status(403).json({ error: 'เนเธกเนเธกเธตเธชเธดเธ—เธเธดเนเน€เธเนเธฒเธ–เธถเธเนเธเธฃเธเธเธฒเธฃเธเธตเน' });
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
 
@@ -475,7 +475,7 @@ export const reorderStaff = async (req: AuthRequest, res: Response) => {
     }
 
     if (!(await ensureProjectAccess(req, projectId))) {
-      return res.status(403).json({ error: 'เนเธกเนเธกเธตเธชเธดเธ—เธเธดเนเน€เธเนเธฒเธ–เธถเธเนเธเธฃเธเธเธฒเธฃเธเธตเน' });
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
     const uniqueIds = new Set(orderedStaffIds);
@@ -542,7 +542,7 @@ export const applyStaffWeeklyOffDay = async (req: AuthRequest, res: Response) =>
     }
 
     if (!(await ensureProjectAccess(req, staff.projectId))) {
-      return res.status(403).json({ error: 'เนเธกเนเธกเธตเธชเธดเธ—เธเธดเนเน€เธเนเธฒเธ–เธถเธเนเธเธฃเธเธเธฒเธฃเธเธตเน' });
+      return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
 
 

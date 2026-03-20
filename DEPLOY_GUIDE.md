@@ -171,7 +171,7 @@ cd ..
 
 ถ้าไม่ตั้ง `VITE_API_URL` (ค่าเริ่มต้น) frontend จะเรียก `/api` (ใช้ domain เดียว + reverse proxy)
 
-> **หมายเหตุ**: ไฟล์รูปภาพ (login-bg.png, senx-logo.webp) จะถูก build อัตโนมัติไปที่ `dist/assets/` พร้อม hash ในชื่อไฟล์ (เช่น `login-bg-a1b2c3.png`) เพื่อป้องกันปัญหา cache
+> **หมายเหตุ**: ไฟล์รูปภาพ (login-bg.jpg, senx-logo.webp) จะถูก build อัตโนมัติไปที่ `dist/assets/` พร้อม hash ในชื่อไฟล์ (เช่น `login-bg-a1b2c3.jpg`) เพื่อป้องกันปัญหา cache
 
 ### 2.1 แตกไฟล์
 
