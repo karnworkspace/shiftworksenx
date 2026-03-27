@@ -511,7 +511,7 @@ const RosterPage: React.FC = () => {
     }
     setEditingCell({ staffId, day, currentShift });
     setIsShiftModalOpen(true);
-  }, [canEdit, user]);
+  }, [canEdit]);
 
   // Handle shift selection (memoized)
   const handleShiftSelect = useCallback(async (newShift: string) => {
@@ -641,31 +641,24 @@ const RosterPage: React.FC = () => {
 
     if (!rosterMatrix) return { working, absent, leave, off };
 
-    // Find shift codes for different categories
+    // Find shift codes for special categories
     const absentShift = shiftTypes.find(s => s.code === 'ขาด' || s.code === 'ข');
-    const leaveShift = shiftTypes.find(s => s.code === 'ลา' || s.code === 'ล');
     const offShift = shiftTypes.find(s => s.code === 'OFF' || s.code === 'หยุด');
 
     projectStaff.forEach((staff) => {
       const shift = rosterMatrix[staff.id]?.days[selectedDay]?.shiftCode;
-      
+
       if (!shift || shift === 'OFF' || shift === (offShift?.code)) {
-        // No shift assigned or OFF/หยุด
         off++;
       } else if (shift === absentShift?.code) {
-        // Absent shift
         absent++;
-      } else if (shift === leaveShift?.code) {
-        // Leave shift
-        leave++;
       } else {
-        // Check if it's a work shift
         const shiftType = shiftTypes.find((st) => st.code === shift);
         if (shiftType?.isWorkShift) {
           working++;
         } else {
-          // Other non-working shifts
-          off++;
+          // ลาพักร้อน, ลาป่วย, ลากิจ และประเภทลาอื่นๆ ทั้งหมด
+          leave++;
         }
       }
     });
@@ -712,9 +705,14 @@ const RosterPage: React.FC = () => {
                 style={{ width: 250 }}
                 onChange={setSelectedProjectId}
                 value={selectedProjectId}
+                showSearch
+                optionFilterProp="label"
+                filterOption={(input, option) =>
+                  String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
               >
                 {projects.map((p) => (
-                  <Select.Option key={p.id} value={p.id}>
+                  <Select.Option key={p.id} value={p.id} label={p.name}>
                     {p.name}
                   </Select.Option>
                 ))}

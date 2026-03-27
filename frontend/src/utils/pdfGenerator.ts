@@ -17,6 +17,7 @@ interface Staff {
 interface Project {
   id: string;
   name: string;
+  projectType?: 'HORIZONTAL' | 'VERTICAL' | 'GROUP';
 }
 
 interface RosterData {
@@ -226,7 +227,7 @@ export const generateMonthlyReport = async (data: ReportData) => {
             </td>
             <td style="width: 12%; text-align: center; vertical-align: middle;">
               <div style="font-size: 10px;">เอกสารเลขที่</div>
-              <div style="font-size: 10px; border: 1px solid #000; padding: 4px; margin-top: 3px;">ATT-${data.month.format('YYMM')}-001</div>
+              <div style="font-size: 10px; border: 1px solid #000; padding: 4px; margin-top: 3px;">ATT-${String((data.month.year() + 543) % 100).padStart(2, '0')}${data.month.format('MM')}-001</div>
             </td>
           </tr>
         </table>
@@ -313,7 +314,7 @@ export const generateMonthlyReport = async (data: ReportData) => {
                     <div style="font-weight: bold; font-size: 11px; margin-bottom: 35px;">ผู้จัดทำ</div>
                     <div style="font-size: 10px; margin-bottom: 8px;">ลงชื่อ ................................</div>
                     <div style="font-size: 10px; margin-bottom: 8px;">(..................................)</div>
-                    <div style="font-size: 10px; margin-bottom: 8px;">ตำแหน่ง ผู้จัดการอาคาร</div>
+                    <div style="font-size: 10px; margin-bottom: 8px;">ตำแหน่ง ผู้จัดการอาคาร/หมู่บ้าน</div>
                     <div style="font-size: 10px;">วันที่ ${formatThaiDateFull(dayjs())}</div>
                   </div>
                 </td>

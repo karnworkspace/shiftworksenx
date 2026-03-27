@@ -14,12 +14,14 @@ import {
   Popconfirm,
   Spin,
 } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   MinusCircleOutlined,
 } from '@ant-design/icons';
+import { useMemo } from 'react';
 import { useProjectStore } from '../stores/projectStore';
 import { useStaffStore } from '../stores/staffStore';
 import { useAuthStore } from '../stores/authStore';
@@ -30,6 +32,7 @@ interface Project {
   themeColor: string;
   managerId?: string;
   location?: string;
+  projectType?: 'HORIZONTAL' | 'VERTICAL' | 'GROUP';
   subProjects?: { name: string; percentage: number }[];
   isActive: boolean;
   editCutoffDay?: number;
@@ -40,11 +43,12 @@ const ProjectsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
 
   // Use global stores
   const { projects, addProject, updateProject, deleteProject, fetchProjects, loading } = useProjectStore();
-  const { getActiveStaffByProject, fetchStaff } = useStaffStore();
+  const { getActiveStaffByProject, fetchAllStaff } = useStaffStore();
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
@@ -53,10 +57,10 @@ const ProjectsPage: React.FC = () => {
     fetchProjects();
   }, []);
 
-  // Fetch staff for all projects
+  // Fetch staff for all projects (sequential ผ่าน fetchAllStaff แทน concurrent forEach)
   useEffect(() => {
     if (projects.length > 0) {
-      projects.forEach(p => fetchStaff(p.id, true));
+      fetchAllStaff(projects.map(p => p.id));
     }
   }, [projects.length]);
 
@@ -65,12 +69,19 @@ const ProjectsPage: React.FC = () => {
     return getActiveStaffByProject(projectId).length;
   };
 
+  const filteredProjects = useMemo(() => {
+    if (!searchText.trim()) return projects;
+    const keyword = searchText.trim().toLowerCase();
+    return projects.filter(p => p.name.toLowerCase().includes(keyword));
+  }, [projects, searchText]);
+
   const handleCreate = () => {
     setEditingProject(null);
     form.resetFields();
     form.setFieldsValue({
       themeColor: '#3b82f6',
       isActive: true,
+      projectType: 'VERTICAL',
       subProjects: [],
       ...(isSuperAdmin ? { editCutoffDay: 2, editCutoffNextMonth: true } : {}),
     });
@@ -82,6 +93,7 @@ const ProjectsPage: React.FC = () => {
     form.setFieldsValue({
       name: project.name,
       location: project.location,
+      projectType: project.projectType || 'VERTICAL',
       editCutoffDay: project.editCutoffDay ?? 2,
       editCutoffNextMonth: project.editCutoffNextMonth ?? true,
       subProjects: Array.isArray(project.subProjects)
@@ -118,6 +130,7 @@ const ProjectsPage: React.FC = () => {
           name: values.name,
           location: values.location,
           themeColor,
+          projectType: values.projectType || 'VERTICAL',
           isActive: values.isActive ?? true,
           subProjects: normalizedSubProjects,
         };
@@ -148,6 +161,7 @@ const ProjectsPage: React.FC = () => {
           name: values.name,
           location: values.location,
           themeColor,
+          projectType: values.projectType || 'VERTICAL',
           isActive: values.isActive ?? true,
           subProjects: normalizedSubProjects,
         };
@@ -211,6 +225,20 @@ const ProjectsPage: React.FC = () => {
       dataIndex: 'location',
       key: 'location',
       render: (text: string) => text || '-',
+    },
+    {
+      title: 'ประเภทโครงการ',
+      dataIndex: 'projectType',
+      key: 'projectType',
+      render: (value: string) => {
+        const map: Record<string, { label: string; color: string }> = {
+          HORIZONTAL: { label: 'แนวราบ', color: 'orange' },
+          VERTICAL: { label: 'แนวสูง', color: 'geekblue' },
+          GROUP: { label: 'กลุ่มโครงการ', color: 'purple' },
+        };
+        const { label, color } = map[value] ?? { label: value, color: 'default' };
+        return <Tag color={color}>{label}</Tag>;
+      },
     },
     {
       title: 'โครงการย่อย',
@@ -288,10 +316,20 @@ const ProjectsPage: React.FC = () => {
           </Button>
         }
       >
+        <div style={{ marginBottom: 16 }}>
+          <Input
+            placeholder="ค้นหาชื่อโครงการ..."
+            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+            allowClear
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            style={{ maxWidth: 320 }}
+          />
+        </div>
         <Spin spinning={loading}>
           <Table
             columns={columns}
-            dataSource={projects}
+            dataSource={filteredProjects}
             rowKey="id"
           />
         </Spin>
@@ -318,6 +356,18 @@ const ProjectsPage: React.FC = () => {
 
           <Form.Item label="สถานที่" name="location">
             <Input placeholder="เช่น กรุงเทพฯ" />
+          </Form.Item>
+
+          <Form.Item
+            label="ประเภทโครงการ"
+            name="projectType"
+            rules={[{ required: true, message: 'กรุณาเลือกประเภทโครงการ' }]}
+          >
+            <Select placeholder="เลือกประเภทโครงการ">
+              <Select.Option value="VERTICAL">แนวสูง</Select.Option>
+              <Select.Option value="HORIZONTAL">แนวราบ</Select.Option>
+              <Select.Option value="GROUP">กลุ่มโครงการ</Select.Option>
+            </Select>
           </Form.Item>
 
           <Form.Item

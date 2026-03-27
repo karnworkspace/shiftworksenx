@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
     Card,
     Table,
@@ -22,6 +22,7 @@ import {
     DeleteOutlined,
     KeyOutlined,
     UserOutlined,
+    SearchOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userService, User, CreateUserData, UpdateUserData } from '../services/user.service';
@@ -66,6 +67,8 @@ export default function UsersPage() {
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [loadingUserProjects, setLoadingUserProjects] = useState(false);
+    const [searchText, setSearchText] = useState('');
+    const [roleFilter, setRoleFilter] = useState<string | null>(null);
     const [form] = Form.useForm();
     const [passwordForm] = Form.useForm();
     // Watch role field for reactive form updates
@@ -230,6 +233,22 @@ export default function UsersPage() {
         }
     };
 
+    const filteredUsers = useMemo(() => {
+        let result = users;
+        if (searchText.trim()) {
+            const keyword = searchText.trim().toLowerCase();
+            result = result.filter(
+                u =>
+                    u.name.toLowerCase().includes(keyword) ||
+                    u.email.toLowerCase().includes(keyword)
+            );
+        }
+        if (roleFilter) {
+            result = result.filter(u => u.role === roleFilter);
+        }
+        return result;
+    }, [users, searchText, roleFilter]);
+
     const handleChangePassword = async (values: any) => {
         if (selectedUserId) {
             changePasswordMutation.mutate({
@@ -355,8 +374,32 @@ export default function UsersPage() {
                     </Button>
                 </div>
 
+                <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                    <Input
+                        placeholder="ค้นหาชื่อหรืออีเมล..."
+                        prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+                        allowClear
+                        value={searchText}
+                        onChange={e => setSearchText(e.target.value)}
+                        style={{ maxWidth: 280 }}
+                    />
+                    <Select
+                        placeholder="ฟิลเตอร์บทบาท"
+                        allowClear
+                        value={roleFilter}
+                        onChange={val => setRoleFilter(val ?? null)}
+                        style={{ width: 180 }}
+                    >
+                        {roleOptions.map(r => (
+                            <Select.Option key={r.value} value={r.value}>
+                                <Tag color={r.color} style={{ marginRight: 4 }}>{r.label}</Tag>
+                            </Select.Option>
+                        ))}
+                    </Select>
+                </div>
+
                 <Table
-                    dataSource={users}
+                    dataSource={filteredUsers}
                     columns={columns}
                     rowKey="id"
                     loading={isLoading}

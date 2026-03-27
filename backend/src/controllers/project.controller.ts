@@ -43,12 +43,7 @@ export const getAllProjects = async (req: AuthRequest, res: Response) => {
     // SUPER_ADMIN เห็นทุกโครงการ, คนอื่นเห็นเฉพาะที่ถูก assign
     const allowedIds = !isAdmin && req.user ? await getAccessibleProjectIds(req.user.userId) : null;
 
-    // Debug: log project access for non-admin users
-    if (!isAdmin && req.user) {
-      console.log(`[getAllProjects] User ${req.user.email} (${req.user.role}) → allowedIds:`, allowedIds);
-    }
-
-    const projects = await prisma.project.findMany({
+const projects = await prisma.project.findMany({
       where: {
         ...(includeInactive ? {} : { isActive: true }),
         // ถ้า allowedIds เป็น null (SUPER_ADMIN) ไม่กรอง, ถ้าเป็น array (รวม []) กรองตาม IDs
@@ -154,10 +149,15 @@ export const getProjectById = async (req: AuthRequest, res: Response) => {
 
 export const createProject = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, location, themeColor, managerId, description, editCutoffDay, editCutoffNextMonth } = req.body;
+    const { name, location, themeColor, managerId, description, editCutoffDay, editCutoffNextMonth, projectType } = req.body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'Project name is required' });
+    }
+
+    const validProjectTypes = ['HORIZONTAL', 'VERTICAL', 'GROUP'];
+    if (projectType !== undefined && !validProjectTypes.includes(projectType)) {
+      return res.status(400).json({ error: 'projectType must be HORIZONTAL or VERTICAL' });
     }
 
     const parsed = normalizeSubProjects(req.body.subProjects);
@@ -173,6 +173,7 @@ export const createProject = async (req: AuthRequest, res: Response) => {
         themeColor: themeColor || '#3b82f6',
         description: description || null,
         managerId,
+        projectType: projectType || 'VERTICAL',
         editCutoffDay: editCutoffDay ?? 2,
         editCutoffNextMonth: editCutoffNextMonth ?? true,
         ...(subProjects.length > 0 ? {
@@ -213,10 +214,15 @@ export const createProject = async (req: AuthRequest, res: Response) => {
 export const updateProject = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, location, themeColor, managerId, isActive, description, editCutoffDay, editCutoffNextMonth } = req.body;
+    const { name, location, themeColor, managerId, isActive, description, editCutoffDay, editCutoffNextMonth, projectType } = req.body;
 
     if (!(await ensureProjectAccess(req, id))) {
       return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
+    }
+
+    const validProjectTypes = ['HORIZONTAL', 'VERTICAL', 'GROUP'];
+    if (projectType !== undefined && !validProjectTypes.includes(projectType)) {
+      return res.status(400).json({ error: 'projectType must be HORIZONTAL or VERTICAL' });
     }
 
     const parsed = normalizeSubProjects(req.body.subProjects);
@@ -235,6 +241,7 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
           ...(managerId !== undefined && { managerId }),
           ...(isActive !== undefined && { isActive }),
           ...(description !== undefined && { description }),
+          ...(projectType !== undefined && { projectType }),
           ...(editCutoffDay !== undefined && { editCutoffDay }),
           ...(editCutoffNextMonth !== undefined && { editCutoffNextMonth }),
         },
@@ -266,13 +273,17 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    const transformedProject = updatedProject ? {
+    if (!updatedProject) {
+      return res.status(404).json({ error: 'ไม่พบโครงการ' });
+    }
+
+    const transformedProject = {
       ...updatedProject,
       subProjects: updatedProject.subProjects.map(sp => ({
         ...sp,
         percentage: Number(sp.percentage),
       })),
-    } : updatedProject;
+    };
 
     return res.json({
       success: true,
@@ -299,7 +310,10 @@ export const deleteProject = async (req: AuthRequest, res: Response) => {
     });
 
     return res.json({ success: true, message: 'ปิดการใช้งานโครงการสำเร็จ' });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ error: 'ไม่พบโครงการ' });
+    }
     console.error('Delete project error:', error);
     return res.status(500).json({ error: 'Failed to delete project' });
   }

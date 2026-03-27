@@ -1,128 +1,16 @@
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Starting seed...');
 
-  // สร้าง Super Admin
-  const hashedPassword = await bcrypt.hash('admin123', 10);
-
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@senx.com' },
-    update: {},
-    create: {
-      email: 'admin@senx.com',
-      password: hashedPassword,
-      name: 'Admin SENX',
-      role: 'SUPER_ADMIN',
-    },
-  });
-
-  console.log('✅ Created admin:', admin.email);
-
-  // สร้าง Site Admin (non-SUPER_ADMIN user with project access)
-  const siteAdminPassword = await bcrypt.hash('admin123', 10);
-  const siteAdmin = await prisma.user.upsert({
-    where: { email: 'siteadmin@gmail.com' },
-    update: {},
-    create: {
-      email: 'siteadmin@gmail.com',
-      password: siteAdminPassword,
-      name: 'Site Admin',
-      role: 'SITE_MANAGER',
-      permissions: ['reports', 'roster', 'staff', 'projects'],
-    },
-  });
-
-  console.log('✅ Created site admin:', siteAdmin.email);
-
-  // สร้างประเภทกะการทำงาน (Shift Types)
-  const defaultShifts = [
-    {
-      code: 'OFF',
-      name: 'หยุด',
-      startTime: null,
-      endTime: null,
-      color: '#6b7280', // เทา
-      isWorkShift: false,
-    },
-    {
-      code: 'ขาด',
-      name: 'ขาดงาน',
-      startTime: null,
-      endTime: null,
-      color: '#ef4444', // แดง
-      isWorkShift: false,
-      isSystemDefault: true, // ไม่ให้ลบ
-    },
-    {
-      code: '1',
-      name: 'กะเช้า',
-      startTime: '08:00',
-      endTime: '16:00',
-      color: '#3b82f6', // น้ำเงิน
-      isWorkShift: true,
-    },
-    {
-      code: '2',
-      name: 'กะบ่าย',
-      startTime: '16:00',
-      endTime: '00:00',
-      color: '#10b981', // เขียว
-      isWorkShift: true,
-    },
-    {
-      code: 'ดึก',
-      name: 'กะดึก',
-      startTime: '00:00',
-      endTime: '08:00',
-      color: '#8b5cf6', // ม่วง
-      isWorkShift: true,
-    },
-    {
-      code: 'ลา',
-      name: 'ลาพักร้อน',
-      startTime: null,
-      endTime: null,
-      color: '#f59e0b', // ส้ม
-      isWorkShift: false,
-    },
-    {
-      code: 'ป่วย',
-      name: 'ลาป่วย',
-      startTime: null,
-      endTime: null,
-      color: '#fbbf24', // ส้มอ่อน
-      isWorkShift: false,
-    },
-    {
-      code: 'กิจ',
-      name: 'ลากิจ',
-      startTime: null,
-      endTime: null,
-      color: '#f97316', // ส้มเข้ม
-      isWorkShift: false,
-    },
-  ];
-
-  // Upsert all default shifts
-  for (const shift of defaultShifts) {
-    await prisma.shiftType.upsert({
-      where: { code: shift.code },
-      update: {
-        name: shift.name,
-        startTime: shift.startTime,
-        endTime: shift.endTime,
-        color: shift.color,
-        isWorkShift: shift.isWorkShift,
-      },
-      create: shift,
-    });
+  // หา admin คนแรกใน DB เพื่อใช้เป็น managerId
+  const admin = await prisma.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
+  if (!admin) {
+    console.error('❌ ไม่พบ SUPER_ADMIN ใน database กรุณาสร้าง user ก่อน');
+    process.exit(1);
   }
-
-  console.log('✅ Created/updated shift types');
 
   // สร้างโครงการตัวอย่าง
   const project1 = await prisma.project.create({
@@ -154,18 +42,7 @@ async function main() {
 
   console.log('✅ Created projects');
 
-  // สร้าง UserProject assignments สำหรับ siteAdmin
-  await prisma.userProject.createMany({
-    data: [
-      { userId: siteAdmin.id, projectId: project1.id },
-      { userId: siteAdmin.id, projectId: project2.id },
-    ],
-    skipDuplicates: true,
-  });
-
-  console.log('✅ Assigned projects to site admin (project 1 & 2)');
-
-  // สร้างพนักงานตัวอย่าง - โครงการ 1
+// สร้างพนักงานตัวอย่าง - โครงการ 1
   const staff1 = await prisma.staff.create({
     data: {
       name: 'สมชาย ใจดี',

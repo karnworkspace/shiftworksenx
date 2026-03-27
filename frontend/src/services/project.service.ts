@@ -6,6 +6,7 @@ export interface Project {
   location?: string;
   themeColor: string;
   description?: string;
+  projectType: 'HORIZONTAL' | 'VERTICAL' | 'GROUP';
   managerId?: string;
   manager?: { id: string; name: string; email: string };
   subProjects?: { name: string; percentage: number }[];
@@ -21,6 +22,7 @@ export interface CreateProjectData {
   location?: string;
   themeColor?: string;
   description?: string;
+  projectType?: 'HORIZONTAL' | 'VERTICAL' | 'GROUP';
   managerId?: string;
   subProjects?: { name: string; percentage: number }[];
   isActive?: boolean;
@@ -33,6 +35,7 @@ export interface UpdateProjectData {
   location?: string;
   themeColor?: string;
   description?: string;
+  projectType?: 'HORIZONTAL' | 'VERTICAL' | 'GROUP';
   managerId?: string;
   subProjects?: { name: string; percentage: number }[];
   isActive?: boolean;

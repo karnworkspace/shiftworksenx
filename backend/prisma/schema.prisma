@@ -34,17 +34,24 @@ enum UserRole {
   SITE_MANAGER
 }
 
+enum ProjectType {
+  HORIZONTAL
+  VERTICAL
+  GROUP
+}
+
 model Project {
-  id                 String   @id @default(uuid()) @db.Uuid
+  id                 String      @id @default(uuid()) @db.Uuid
   name               String
   location           String?
-  themeColor         String   @default("#3b82f6") @map("theme_color")
+  themeColor         String      @default("#3b82f6") @map("theme_color")
   description        String?
-  isActive           Boolean  @default(true) @map("is_active")
-  editCutoffDay      Int      @default(2) @map("edit_cutoff_day")
-  editCutoffNextMonth Boolean @default(true) @map("edit_cutoff_next_month")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  projectType        ProjectType @default(VERTICAL) @map("project_type")
+  isActive           Boolean     @default(true) @map("is_active")
+  editCutoffDay      Int         @default(2) @map("edit_cutoff_day")
+  editCutoffNextMonth Boolean    @default(true) @map("edit_cutoff_next_month")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
 
   managerId String? @db.Uuid @map("manager_id")
   manager   User?   @relation(fields: [managerId], references: [id])
