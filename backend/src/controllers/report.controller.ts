@@ -135,10 +135,11 @@ export const getMonthlyDeductionReport = async (req: AuthRequest, res: Response)
       });
     }
 
-    // Get all staff for this project (include inactive to show historical data)
+    // แสดงเฉพาะพนักงานที่ active เท่านั้น
     const staff = await prisma.staff.findMany({
       where: {
         projectId: projectId as string,
+        isActive: true,
       },
     });
 
@@ -323,7 +324,7 @@ export const exportReportCSV = async (req: AuthRequest, res: Response) => {
     }
 
     const staff = await prisma.staff.findMany({
-      where: { projectId: projectId as string },
+      where: { projectId: projectId as string, isActive: true },
     });
 
     const attendanceReports = await Promise.all(

@@ -493,9 +493,18 @@ export default function UsersPage() {
                             mode="multiple"
                             placeholder="เลือกโครงการ (ต้องเลือกอย่างน้อย 1 โครงการ)"
                             optionLabelProp="label"
+                            showSearch
+                            filterOption={(input, option) => {
+                                const text = `${option?.label ?? ''}`.toLowerCase();
+                                return text.includes(input.toLowerCase());
+                            }}
                         >
                             {projects.map((project) => (
-                                <Select.Option key={project.id} value={project.id} label={project.name}>
+                                <Select.Option
+                                    key={project.id}
+                                    value={project.id}
+                                    label={`${project.name}${project.location ? ` (${project.location})` : ''}`}
+                                >
                                     {project.name} {project.location && `(${project.location})`}
                                 </Select.Option>
                             ))}

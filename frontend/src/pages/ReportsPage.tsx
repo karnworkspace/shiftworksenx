@@ -63,8 +63,8 @@ const ReportsPage: React.FC = () => {
     }
   }, [selectedProjectId, selectedDate]);
 
-  // ดึงพนักงานทุกคนในโครงการ รวมถึงที่ไม่ active เพื่อให้ตรงกับ backend CSV export (historical data)
-  const projectStaff = getStaffByProject(selectedProjectId);
+  // แสดงเฉพาะพนักงาน active ในรายงาน (ทั้งบนหน้าจอและ PDF/CSV)
+  const projectStaff = getStaffByProject(selectedProjectId).filter((staff) => staff.isActive);
 
   // Get current project from store
   const currentProject = getProject(selectedProjectId);
