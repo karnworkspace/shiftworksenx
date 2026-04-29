@@ -22,6 +22,23 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// --- Refresh token queue ---
+// ป้องกัน race condition: ถ้า request หลายอันได้รับ 401 พร้อมกัน
+// จะ refresh แค่ครั้งเดียว แล้ว retry ทุก request ที่รอคิวอยู่
+let isRefreshing = false;
+let refreshQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
+
+const processQueue = (error: unknown, token: string | null = null) => {
+  refreshQueue.forEach((p) => {
+    if (error) {
+      p.reject(error);
+    } else {
+      p.resolve(token!);
+    }
+  });
+  refreshQueue = [];
+};
+
 // Response interceptor - Handle token refresh
 apiClient.interceptors.response.use(
   (response) => response,
@@ -31,28 +48,45 @@ apiClient.interceptors.response.use(
     const isAuthRequest =
       requestUrl.includes('/auth/login') || requestUrl.includes('/auth/refresh');
 
-    // If 401 and not already retried
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
 
+      if (isRefreshing) {
+        // มี refresh กำลังทำงานอยู่ → เข้าคิวรอ
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({
+            resolve: (token: string) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              resolve(apiClient(originalRequest));
+            },
+            reject,
+          });
+        });
+      }
+
+      isRefreshing = true;
+
       try {
-        // Try to refresh token
         const { data } = await axios.post(
           `${API_URL}/auth/refresh`,
           {},
           { withCredentials: true }
         );
 
-        localStorage.setItem('accessToken', data.accessToken);
+        const newToken = data.accessToken;
+        localStorage.setItem('accessToken', newToken);
 
-        // Retry original request
-        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+        processQueue(null, newToken);
+
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        // Refresh failed - logout
+        processQueue(refreshError, null);
         localStorage.removeItem('accessToken');
         window.location.href = '/login';
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 

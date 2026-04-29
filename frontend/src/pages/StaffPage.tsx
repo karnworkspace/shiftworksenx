@@ -161,10 +161,7 @@ const StaffPage: React.FC = () => {
     try {
       const values = await form.validateFields();
 
-      console.log('Form values:', values);
-
       if (editingStaff) {
-        console.log('Updating staff:', editingStaff.id, values);
         const result = await updateStaff(editingStaff.id, {
           code: values.code,
           name: values.name,
@@ -174,7 +171,6 @@ const StaffPage: React.FC = () => {
           isActive: values.isActive,
           remark: values.remark,
         });
-        console.log('Update result:', result);
         if (result) {
           message.success('แก้ไขพนักงานสำเร็จ');
         } else {
@@ -182,7 +178,6 @@ const StaffPage: React.FC = () => {
           return;
         }
       } else {
-        console.log('Creating new staff');
         const result = await addStaff({
           code: values.code,
           name: values.name,
@@ -194,7 +189,6 @@ const StaffPage: React.FC = () => {
           projectId: selectedProjectId,
           remark: values.remark,
         });
-        console.log('Create result:', result);
         if (result) {
           message.success('เพิ่มพนักงานสำเร็จ');
         } else {
@@ -430,9 +424,14 @@ const StaffPage: React.FC = () => {
               style={{ width: 250 }}
               onChange={setSelectedProjectId}
               value={selectedProjectId}
+              showSearch
+              optionFilterProp="label"
+              filterOption={(input, option) =>
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             >
               {projects.map((p) => (
-                <Select.Option key={p.id} value={p.id}>
+                <Select.Option key={p.id} value={p.id} label={p.name}>
                   {p.name}
                 </Select.Option>
               ))}

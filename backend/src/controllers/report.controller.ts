@@ -64,9 +64,7 @@ async function calculateMonthlyAttendance(
     }
   });
 
-  console.log(`[Staff ${staff.name}] Attendance: workDays=${totalWorkDays}, absent=${totalAbsent}(code: ${absentCode}), sick=${totalSickLeave}, personal=${totalPersonalLeave}, vacation=${totalVacation}`);
-
-  // Calculate deduction (absent days * wage per day) - for display only
+// Calculate deduction (absent days * wage per day) - for display only
   const deductionAmount = totalAbsent * wagePerDay;
 
   // Calculate expected salary (only actual work days)
@@ -137,10 +135,11 @@ export const getMonthlyDeductionReport = async (req: AuthRequest, res: Response)
       });
     }
 
-    // Get all staff for this project (include inactive to show historical data)
+    // แสดงเฉพาะพนักงานที่ active เท่านั้น
     const staff = await prisma.staff.findMany({
       where: {
         projectId: projectId as string,
+        isActive: true,
       },
     });
 
@@ -298,6 +297,10 @@ export const exportReportCSV = async (req: AuthRequest, res: Response) => {
     const yearNum = parseInt(year as string);
     const monthNum = parseInt(month as string);
 
+    if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({ error: 'Year and month must be valid numbers' });
+    }
+
     if (!(await ensureProjectAccess(req, projectId as string))) {
       return res.status(403).json({ error: 'ไม่มีสิทธิ์เข้าถึงโครงการนี้' });
     }
@@ -321,7 +324,7 @@ export const exportReportCSV = async (req: AuthRequest, res: Response) => {
     }
 
     const staff = await prisma.staff.findMany({
-      where: { projectId: projectId as string },
+      where: { projectId: projectId as string, isActive: true },
     });
 
     const attendanceReports = await Promise.all(

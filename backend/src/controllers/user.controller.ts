@@ -13,6 +13,7 @@ const userSelect = {
   createdAt: true,
   updatedAt: true,
   projectAccess: {
+    where: { project: { isActive: true } },
     select: {
       project: {
         select: {
@@ -280,6 +281,7 @@ export const getUserProjectAccess = async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         projectAccess: {
+          where: { project: { isActive: true } },
           select: {
             projectId: true,
             project: {
@@ -343,9 +345,9 @@ export const updateUserProjectAccess = async (req: AuthRequest, res: Response) =
       });
     }
 
-    // Get updated project access
+    // Get updated project access (เฉพาะโครงการที่ยังใช้งานอยู่)
     const projects = await prisma.userProject.findMany({
-      where: { userId: id },
+      where: { userId: id, project: { isActive: true } },
       select: {
         project: {
           select: {

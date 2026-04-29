@@ -63,7 +63,7 @@ const ReportsPage: React.FC = () => {
     }
   }, [selectedProjectId, selectedDate]);
 
-  // Filter staff by project using store - only active staff
+  // แสดงเฉพาะพนักงาน active ในรายงาน (ทั้งบนหน้าจอและ PDF/CSV)
   const projectStaff = getStaffByProject(selectedProjectId).filter((staff) => staff.isActive);
 
   // Get current project from store
@@ -279,9 +279,14 @@ const ReportsPage: React.FC = () => {
               style={{ width: 250 }}
               onChange={setSelectedProjectId}
               value={selectedProjectId}
+              showSearch
+              optionFilterProp="label"
+              filterOption={(input, option) =>
+                String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             >
               {projects.map((p) => (
-                <Select.Option key={p.id} value={p.id}>
+                <Select.Option key={p.id} value={p.id} label={p.name}>
                   {p.name}
                 </Select.Option>
               ))}
